@@ -117,7 +117,8 @@
     <h1>Handstand-<br>Log</h1>
     <p>Stell das Handy hochkant neben dich. Die App erkennt, wann du im Handstand bist, stoppt die Zeit und nimmt alles auf.</p>
     <ul>
-      <li>Ganzer Körper muss im Bild sein</li>
+      <li>Ganzer Körper muss im Bild sein, im Handstand auch die Füße</li>
+      <li>Deine Haltezeit wird für jeden Versuch ins Video eingeblendet</li>
       <li>Video und Zeiten bleiben auf deinem Handy</li>
     </ul>
     <button id="btnCam" class="btn primary" type="button">Kamera aktivieren</button>
@@ -141,12 +142,6 @@
         <label for="segMin">Zählt ab</label>
         <div class="seg" id="segMin" data-key="minHold">
           <button type="button" data-v="3">3 s</button><button type="button" data-v="10">10 s</button><button type="button" data-v="20">20 s</button>
-        </div>
-      </div>
-      <div class="row">
-        <label for="segLead">Vorlauf</label>
-        <div class="seg" id="segLead" data-key="lead">
-          <button type="button" data-v="5">5 s</button><button type="button" data-v="10">10 s</button><button type="button" data-v="15">15 s</button>
         </div>
       </div>
       <div class="row">
@@ -221,15 +216,20 @@ class HoldDetector {
   }
 }
 
-// MediaPipe-Pose-Indizes: 11/12 Schultern, 15/16 Handgelenke, 23/24 Hueften, 27/28 Knoechel. y waechst nach unten.
+// MediaPipe-Pose-Indizes: 11/12 Schultern, 15/16 Handgelenke, 23/24 Hueften, 25/26 Knie, 27/28 Knoechel. y waechst nach unten.
+// Zaehlt erst, wenn die Beine in der Luft sind: Fuesse (sonst Knie) muessen deutlich ueber den Hueften liegen.
+// Vorbereitung mit Haenden am Boden und Fuessen am Boden zaehlt damit nicht.
 function isInverted(lm) {
-  const ok = (i) => lm[i] && (lm[i].visibility === undefined || lm[i].visibility > 0.4);
-  if (!(ok(11) && ok(12) && ok(23) && ok(24))) return false;
+  const vis = (i, th) => lm[i] && (lm[i].visibility === undefined || lm[i].visibility > th);
+  if (!(vis(11, 0.4) && vis(12, 0.4) && vis(23, 0.4) && vis(24, 0.4))) return false;
   const shY = (lm[11].y + lm[12].y) / 2;
   const hipY = (lm[23].y + lm[24].y) / 2;
   if (!(shY - hipY > 0.07)) return false;                       // Hueften deutlich ueber den Schultern
-  if (ok(27) && ok(28) && (lm[27].y + lm[28].y) / 2 > hipY) return false;   // Fuesse ueber den Hueften
-  if (ok(15) && ok(16) && (lm[15].y + lm[16].y) / 2 < shY - 0.02) return false; // Haende unter den Schultern
+  let legY = null;
+  if (vis(27, 0.3) && vis(28, 0.3)) legY = (lm[27].y + lm[28].y) / 2;
+  else if (vis(25, 0.3) && vis(26, 0.3)) legY = (lm[25].y + lm[26].y) / 2;
+  if (legY === null || !(legY < hipY - 0.05)) return false;     // Beine deutlich ueber den Hueften
+  if (vis(15, 0.4) && vis(16, 0.4) && (lm[15].y + lm[16].y) / 2 < shY - 0.02) return false; // Haende unter den Schultern
   return true;
 }
 // </detector>
@@ -241,7 +241,7 @@ function isInverted(lm) {
   const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 
   // ---- Einstellungen & Bestzeit ----
-  const S = { minHold: 3, lead: 10, facing: 'user', mode: 'auto' };
+  const S = { minHold: 3, facing: 'user', mode: 'auto' };
   try { Object.assign(S, JSON.parse(localStorage.getItem('hs-settings') || '{}')); } catch (e) {}
   let best = 0;
   try { best = parseFloat(localStorage.getItem('hs-best')) || 0; } catch (e) {}
@@ -251,11 +251,11 @@ function isInverted(lm) {
   const clock = (ms) => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
 
   // ---- Zustand ----
-  let phase = 'intro';              // intro | idle | countdown | session | review
+  let phase = 'intro';              // intro | idle | session | stopping | review
   let stream = null, rec = null, chunks = [], recStart = 0, wakeLock = null;
   let landmarker = null, poseState = 'idle';   // idle | loading | ready | failed
-  let countdownEnd = 0, lastCount = -1;
-  let lastDet = 0, lastResult = null, milestone = 0;
+  let lastDet = 0, lastDraw = 0, lastResult = null, milestone = 0;
+  let canvas = null, g2d = null, cstream = null, baked = false;
   let attempts = [], sessionBlob = null, sessionUrl = null, stopAt = null;
   const det = new HoldDetector(500, 700);
   let actx = null;
@@ -348,8 +348,7 @@ function isInverted(lm) {
       else if (poseState === 'loading') txt = 'Erkennung lädt …';
       else if (poseState === 'failed') txt = 'Erkennung fehlt, Manuell';
       else txt = 'Bereit';
-    } else if (phase === 'countdown') txt = 'Vorlauf';
-    else if (phase === 'session') { rec_ = true; txt = det.holding ? 'Handstand!' : 'Aufnahme'; }
+    } else if (phase === 'session') { rec_ = true; txt = det.holding ? 'Handstand!' : 'Aufnahme'; }
     $('statusText').textContent = txt;
     $('dot').hidden = !rec_;
     $('dot').classList.toggle('pulse', rec_);
@@ -359,7 +358,7 @@ function isInverted(lm) {
   // ---- Wake Lock ----
   async function lockScreen() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
   function unlockScreen() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (phase === 'session' || phase === 'countdown')) lockScreen(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && phase === 'session') lockScreen(); });
 
   // ---- Ablauf ----
   function pickMime() {
@@ -368,41 +367,90 @@ function isInverted(lm) {
     return types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
   }
 
-  function startCountdown() {
+  // Start ohne Vorlauf: Aufnahme beginnt sofort, Handy einfach hinstellen und irgendwann loslegen.
+  function beginSession() {
     if (!stream) return;
     try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
-    phase = 'countdown';
-    countdownEnd = performance.now() + S.lead * 1000; lastCount = -1;
-    $('setup').hidden = true; $('running').hidden = false;
-    $('btnStop').textContent = 'Abbrechen';
-    $('hint').textContent = 'Geh in Position. Die Aufnahme startet gleich.';
-    $('stCount').textContent = '0'; $('stBest').textContent = '–'; $('stTotal').textContent = '–';
-    lockScreen(); updateStatus();
-  }
-
-  function beginSession() {
     phase = 'session';
-    chunks = []; attempts = []; lastResult = null; det.reset();
+    chunks = []; attempts = []; lastResult = null; det.reset(); milestone = 0;
+    $('setup').hidden = true; $('running').hidden = false;
+    $('stCount').textContent = '0'; $('stBest').textContent = '–'; $('stTotal').textContent = '–';
+
+    // Aufgenommen wird ein Canvas: Kamerabild plus eingeblendete Haltezeit.
+    let recStream = stream;
+    baked = false;
+    try {
+      canvas = canvas || document.createElement('canvas');
+      if (!canvas.isConnected) {
+        canvas.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:.01;pointer-events:none';
+        document.body.appendChild(canvas);
+      }
+      const vw = cam.videoWidth || 720, vh = cam.videoHeight || 1280;
+      const k = Math.min(1, 1280 / Math.max(vw, vh));
+      canvas.width = Math.round(vw * k); canvas.height = Math.round(vh * k);
+      g2d = canvas.getContext('2d');
+      if (canvas.captureStream) { cstream = canvas.captureStream(30); recStream = cstream; baked = true; drawFrame(performance.now()); }
+    } catch (e) { recStream = stream; baked = false; }
+
     const mime = pickMime();
-    const opts = { videoBitsPerSecond: 2500000 };
+    const opts = { videoBitsPerSecond: 1500000 };
     if (mime) opts.mimeType = mime;
-    try { rec = new MediaRecorder(stream, opts); }
-    catch (e) { rec = new MediaRecorder(stream); }
+    try { rec = new MediaRecorder(recStream, opts); }
+    catch (e) { rec = new MediaRecorder(recStream); }
     rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
     rec.onstart = () => { recStart = performance.now(); };
     rec.onstop = finishSession;
     recStart = performance.now();
     rec.start(1000);
+    lockScreen();
     beep(1320, 0.4);
     $('btnStop').textContent = 'Session beenden';
-    $('hint').textContent = useAuto() ? 'Automatische Erkennung läuft.' : 'Manuell: Tippe auf die Zeit, um zu starten und zu stoppen.';
+    $('hint').textContent = (useAuto() ? 'Automatische Erkennung läuft. ' : 'Manuell: Tippe auf die Zeit zum Starten und Stoppen. ')
+      + (baked ? 'Die Haltezeit wird ins Video eingeblendet.' : 'Dieses Gerät kann die Zeit nicht ins Video einblenden.');
     updateStatus();
   }
 
-  function cancelCountdown() {
-    phase = 'idle'; unlockScreen();
-    $('setup').hidden = false; $('running').hidden = true;
-    updateStatus();
+  // Zeichnet Kamerabild + Zeit-Einblendung auf das Aufnahme-Canvas.
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  function drawFrame(now) {
+    if (!g2d || cam.readyState < 2) return;
+    const w = canvas.width, h = canvas.height;
+    g2d.drawImage(cam, 0, 0, w, h);
+    let label = null, text = null, color = null;
+    if (det.holding) {
+      const endT = det.notSince !== null ? det.lastInv : now;   // Zeit friert ein, sobald die Beine unten sind
+      const sec = Math.max(0, endT - det.holdStart) / 1000;
+      label = 'Versuch ' + (attempts.length + 1);
+      text = fmtSec(sec) + ' s';
+      color = sec >= S.minHold ? '#7bd88f' : '#ffb703';
+    } else if (lastResult && lastResult.vid && now < lastResult.until) {
+      label = 'Versuch ' + lastResult.n;
+      text = lastResult.text + ' s';
+      color = '#7bd88f';
+    }
+    if (!text) return;
+    const nf = Math.round(w * 0.2), lf = Math.round(w * 0.05), pad = Math.round(w * 0.035);
+    const face = '"Barlow Condensed","Arial Narrow",Arial,sans-serif';
+    g2d.textAlign = 'center'; g2d.textBaseline = 'alphabetic';
+    g2d.font = '700 ' + nf + 'px ' + face;
+    const tw = g2d.measureText(text).width;
+    g2d.font = '600 ' + lf + 'px ' + face;
+    const lw = g2d.measureText(label.toUpperCase()).width;
+    const bw = Math.max(tw, lw) + pad * 2, bh = lf + nf + pad * 2.2;
+    const bx = (w - bw) / 2, by = h * 0.05;
+    g2d.fillStyle = 'rgba(14,17,19,0.62)';
+    roundRect(g2d, bx, by, bw, bh, pad);
+    g2d.fill();
+    g2d.fillStyle = '#f1efe9';
+    g2d.font = '600 ' + lf + 'px ' + face;
+    g2d.fillText(label.toUpperCase(), w / 2, by + pad + lf * 0.85);
+    g2d.fillStyle = color;
+    g2d.font = '700 ' + nf + 'px ' + face;
+    g2d.fillText(text, w / 2, by + pad * 1.2 + lf + nf * 0.85);
   }
 
   function stopSession() {
@@ -420,7 +468,7 @@ function isInverted(lm) {
     const dur = (ev.end - ev.start) / 1000;
     if (dur >= S.minHold) {
       attempts.push({ vStart: (ev.start - recStart) / 1000, vEnd: (ev.end - recStart) / 1000, dur });
-      lastResult = { text: fmtSec(dur), label: 'Letzter Versuch', until: performance.now() + 6000, ok: true };
+      lastResult = { text: fmtSec(dur), label: 'Versuch ' + attempts.length, until: performance.now() + 6000, ok: true, vid: true, n: attempts.length };
       if (dur > best) {
         best = dur;
         try { localStorage.setItem('hs-best', String(best)); } catch (e) {}
@@ -444,16 +492,8 @@ function isInverted(lm) {
   // ---- Render- und Erkennungsschleife ----
   function loop(now) {
     requestAnimationFrame(loop);
-    if (phase === 'countdown') {
-      const rem = Math.ceil((countdownEnd - now) / 1000);
-      if (rem <= 0) { beginSession(); }
-      else {
-        if (rem !== lastCount) { lastCount = rem; if (rem <= 3) beep(880, 0.12); }
-        $('timerLabel').textContent = 'Los geht’s in';
-        setTimer(String(rem), '');
-        setBar(0, false);
-      }
-    } else if (phase === 'session') {
+    if (phase === 'session') {
+      if (baked && now - lastDraw >= 30) { lastDraw = now; drawFrame(now); }
       if (useAuto() && cam.readyState >= 2 && now - lastDet > 80) {
         lastDet = now;
         try {
@@ -479,7 +519,8 @@ function isInverted(lm) {
   function renderSession(now) {
     $('statusText').textContent = (det.holding ? 'Handstand! ' : 'REC ') + clock(now - recStart);
     if (det.holding) {
-      const ms = now - det.holdStart, sec = ms / 1000;
+      const endT = det.notSince !== null ? det.lastInv : now;   // friert ein, sobald die Beine unten sind
+      const ms = Math.max(0, endT - det.holdStart), sec = ms / 1000;
       const counts = sec >= S.minHold;
       $('timerLabel').textContent = counts ? 'Zählt' : 'Halten';
       setTimer(fmt(ms), counts ? 'counts' : 'live');
@@ -507,6 +548,7 @@ function isInverted(lm) {
   // ---- Ende & Rueckblick ----
   function finishSession() {
     if (phase === 'review') return;
+    if (cstream) { cstream.getTracks().forEach((t) => t.stop()); cstream = null; }
     const type = ((rec && rec.mimeType) || pickMime() || 'video/webm').split(';')[0];
     sessionBlob = new Blob(chunks, { type });
     if (sessionUrl) URL.revokeObjectURL(sessionUrl);
@@ -595,8 +637,8 @@ function isInverted(lm) {
       loadPose();
     } catch (e) { showCamError(e); }
   });
-  $('btnStart').addEventListener('click', startCountdown);
-  $('btnStop').addEventListener('click', () => { if (phase === 'countdown') cancelCountdown(); else stopSession(); });
+  $('btnStart').addEventListener('click', beginSession);
+  $('btnStop').addEventListener('click', stopSession);
   $('btnSave').addEventListener('click', saveVideo);
   $('btnNew').addEventListener('click', newSession);
 
