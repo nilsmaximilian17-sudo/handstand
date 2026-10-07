@@ -141,7 +141,7 @@
       <div class="row">
         <label for="segMin">Zählt ab</label>
         <div class="seg" id="segMin" data-key="minHold">
-          <button type="button" data-v="3">3 s</button><button type="button" data-v="10">10 s</button><button type="button" data-v="20">20 s</button>
+          <button type="button" data-v="3">3 s</button><button type="button" data-v="5">5 s</button><button type="button" data-v="10">10 s</button><button type="button" data-v="20">20 s</button>
         </div>
       </div>
       <div class="row">
@@ -424,16 +424,20 @@ function isInverted(lm) {
     if (det.holding) {
       const endT = det.notSince !== null ? det.lastInv : now;   // Zeit friert ein, sobald die Beine unten sind
       const sec = Math.max(0, endT - det.holdStart) / 1000;
-      label = 'Versuch ' + (attempts.length + 1);
-      text = fmtSec(sec) + ' s';
-      color = sec >= S.minHold ? '#7bd88f' : '#ffb703';
+      // Erst ab der gewaehlten Mindestzeit sichtbar, zeigt dann direkt die volle Haltezeit und zaehlt weiter.
+      if (sec >= S.minHold) {
+        label = 'Versuch ' + (attempts.length + 1);
+        text = fmtSec(sec) + ' s';
+        color = '#7bd88f';
+      }
     } else if (lastResult && lastResult.vid && now < lastResult.until) {
       label = 'Versuch ' + lastResult.n;
       text = lastResult.text + ' s';
       color = '#7bd88f';
     }
     if (!text) return;
-    const nf = Math.round(w * 0.2), lf = Math.round(w * 0.05), pad = Math.round(w * 0.035);
+    // Klein unten rechts, damit die Anzeige nicht ueber dir im Bild liegt.
+    const nf = Math.round(w * 0.085), lf = Math.round(w * 0.032), pad = Math.round(w * 0.022), m = Math.round(w * 0.035);
     const face = '"Barlow Condensed","Arial Narrow",Arial,sans-serif';
     g2d.textAlign = 'center'; g2d.textBaseline = 'alphabetic';
     g2d.font = '700 ' + nf + 'px ' + face;
@@ -441,16 +445,16 @@ function isInverted(lm) {
     g2d.font = '600 ' + lf + 'px ' + face;
     const lw = g2d.measureText(label.toUpperCase()).width;
     const bw = Math.max(tw, lw) + pad * 2, bh = lf + nf + pad * 2.2;
-    const bx = (w - bw) / 2, by = h * 0.05;
+    const bx = w - m - bw, by = h - m - bh, cx = bx + bw / 2;
     g2d.fillStyle = 'rgba(14,17,19,0.62)';
-    roundRect(g2d, bx, by, bw, bh, pad);
+    roundRect(g2d, bx, by, bw, bh, pad * 0.8);
     g2d.fill();
     g2d.fillStyle = '#f1efe9';
     g2d.font = '600 ' + lf + 'px ' + face;
-    g2d.fillText(label.toUpperCase(), w / 2, by + pad + lf * 0.85);
+    g2d.fillText(label.toUpperCase(), cx, by + pad + lf * 0.85);
     g2d.fillStyle = color;
     g2d.font = '700 ' + nf + 'px ' + face;
-    g2d.fillText(text, w / 2, by + pad * 1.2 + lf + nf * 0.85);
+    g2d.fillText(text, cx, by + pad * 1.2 + lf + nf * 0.85);
   }
 
   function stopSession() {
@@ -522,8 +526,9 @@ function isInverted(lm) {
       const endT = det.notSince !== null ? det.lastInv : now;   // friert ein, sobald die Beine unten sind
       const ms = Math.max(0, endT - det.holdStart), sec = ms / 1000;
       const counts = sec >= S.minHold;
+      // Unter der Mindestzeit laeuft keine Zahl, nur der Fortschrittsbalken. Ab der Mindestzeit erscheint die volle Zeit.
       $('timerLabel').textContent = counts ? 'Zählt' : 'Halten';
-      setTimer(fmt(ms), counts ? 'counts' : 'live');
+      setTimer(counts ? fmt(ms) : ' ', counts ? 'counts' : 'live');
       setBar(sec / S.minHold, counts);
       const m = Math.floor(sec / 10);
       if (m > milestone) { milestone = m; beep(1200, 0.2); }
