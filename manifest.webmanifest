@@ -1,6 +1,6 @@
 {
-  "name": "Handstand-Log",
-  "short_name": "Handstand",
+  "name": "Handstand Logbuch",
+  "short_name": "Handstand Logbuch",
   "start_url": "./handstand-log.html",
   "scope": "./",
   "display": "standalone",
@@ -8,7 +8,15 @@
   "background_color": "#0e1113",
   "theme_color": "#0e1113",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }

@@ -7,10 +7,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Handstand">
+<meta name="apple-mobile-web-app-title" content="Handstand Logbuch">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Handstand-Log</title>
+<title>Handstand Logbuch</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
@@ -51,7 +51,20 @@
   /* Intro */
   #intro { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 14px;
     padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px)); background: var(--bg); overflow-y: auto; }
-  #intro h1 { font-family: var(--disp); font-size: 3.4rem; line-height: .95; margin: 0; letter-spacing: .01em; text-transform: uppercase; }
+  #intro h1 { font-family: var(--disp); font-size: clamp(1.8rem, 9.5vw, 3rem); line-height: .95; margin: 0; letter-spacing: .01em; text-transform: uppercase; min-width: 0; overflow-wrap: anywhere; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .logo { width: 72px; height: 72px; border-radius: 22%; flex: 0 0 auto; box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+
+  /* Startbildschirm: nur Logo und Name */
+  #splash { position: absolute; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 20px; transition: opacity .45s ease; pointer-events: none; }
+  #splash.out { opacity: 0; }
+  #splash .logo { width: 132px; height: 132px; animation: pop .7s cubic-bezier(.2,.9,.3,1.2) both; }
+  #splash .name { align-self: stretch; text-align: center; padding: 0 16px; font-family: var(--disp); font-weight: 700; font-size: clamp(1.5rem, 7vw, 2rem); letter-spacing: .06em; text-transform: uppercase;
+    animation: rise .7s .15s ease both; }
+  @keyframes pop { from { transform: scale(.82); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { #splash .logo, #splash .name { animation: none; } #splash { transition: none; } }
   #intro p { margin: 0; color: var(--mute); line-height: 1.5; max-width: 36ch; }
   #intro ul { margin: 0; padding-left: 1.1em; color: var(--mute); line-height: 1.6; max-width: 36ch; }
   #offlineNote { font-size: .82rem; }
@@ -150,8 +163,12 @@
   .lbl { fill: var(--mute); font-size: 9px; font-family: var(--body); }
   .bar { fill: var(--ok); }
   .bar.rec { fill: var(--hold); }
-  .hrow { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; display: flex; justify-content: space-between; gap: 10px; font-size: .9rem; }
-  .hrow span:last-child { color: var(--mute); text-align: right; font-variant-numeric: tabular-nums; }
+  .hrow { border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 8px 14px; display: flex; align-items: center; gap: 10px; font-size: .9rem; }
+  .hrow .info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .hrow .sub { color: var(--mute); font-size: .82rem; font-variant-numeric: tabular-nums; }
+  .hrow .del { flex: 0 0 auto; background: transparent; border: 1px solid var(--line); border-radius: 10px; min-height: 40px; padding: 0 12px;
+    font-size: .82rem; font-weight: 600; color: var(--mute); }
+  .hrow .del.arm { background: var(--rec); border-color: var(--rec); color: #fff; }
 
   #toast { position: absolute; z-index: 5; left: 12px; right: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); background: #1b2024;
     border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9rem; }
@@ -164,8 +181,16 @@
   <canvas id="overlay"></canvas>
   <div class="shade"></div>
 
+  <div id="splash" aria-hidden="true">
+    <img class="logo" src="icon-512.png" alt="">
+    <div class="name">Handstand Logbuch</div>
+  </div>
+
   <section id="intro">
-    <h1>Handstand-<br>Log</h1>
+    <div class="brand">
+      <img class="logo" src="icon-512.png" alt="">
+      <h1>Handstand<br>Logbuch</h1>
+    </div>
     <p>Stell das Handy hochkant neben dich, tippe auf Start und leg los. Die App erkennt den Handstand, stoppt die Zeit und nimmt die ganze Session auf.</p>
     <ul>
       <li>Ganzer Körper muss im Bild sein, im Handstand auch die Füße</li>
@@ -457,6 +482,14 @@ function muxMp4(opts) {
   // ---- Verlauf (klein, in localStorage) ----
   const HKEY = 'hs-history';
   const loadHist = () => { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch (e) { return []; } };
+  // Eine Session aus dem Verlauf entfernen; die Bestzeit wird aus dem restlichen Verlauf neu berechnet.
+  function deleteHist(t) {
+    const h = loadHist().filter((x) => x.t !== t);
+    try { localStorage.setItem(HKEY, JSON.stringify(h)); } catch (e) {}
+    best = h.reduce((m, x) => Math.max(m, x.best || 0), 0);
+    try { localStorage.setItem('hs-best', String(best)); } catch (e) {}
+    updateStatus();
+  }
   const addHist = (rec) => { const h = loadHist(); h.push(rec); try { localStorage.setItem(HKEY, JSON.stringify(h.slice(-200))); } catch (e) {} };
 
   // ---- Zustand ----
@@ -1352,12 +1385,29 @@ function muxMp4(opts) {
       + '<div><b>' + Math.round(tot) + '</b><span>Haltezeit (s)</span></div>';
     $('histChart').innerHTML = withHolds.length ? chartSvg(withHolds.slice(-14)) : '<p class="empty">Noch keine Sessions mit Handstand. Nach deiner ersten Session erscheint hier dein Verlauf.</p>';
     const list = $('histList'); list.textContent = '';
-    h.slice().reverse().slice(0, 40).forEach((x) => {
+    h.slice().reverse().slice(0, 60).forEach((x) => {
       const row = document.createElement('div'); row.className = 'hrow';
+      const info = document.createElement('div'); info.className = 'info';
       const a = document.createElement('span'); a.textContent = dateTime(x.t);
-      const b = document.createElement('span');
-      b.textContent = x.n + ' Versuche · Bester ' + (x.best ? fmtSec(x.best) + ' s' : '–') + ' · ' + Math.round(x.total || 0) + ' s';
-      row.append(a, b); list.appendChild(row);
+      const b = document.createElement('span'); b.className = 'sub';
+      b.textContent = x.n + ' Versuche · Bester ' + (x.best ? fmtSec(x.best) + ' s' : '–') + ' · Gesamt ' + Math.round(x.total || 0) + ' s';
+      info.append(a, b);
+      // Loeschen mit Bestaetigung: erster Tipp macht den Knopf rot, zweiter Tipp loescht.
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = 'Löschen';
+      del.setAttribute('aria-label', 'Session vom ' + dateTime(x.t) + ' löschen');
+      let armT = null;
+      del.addEventListener('click', () => {
+        if (!del.classList.contains('arm')) {
+          del.classList.add('arm'); del.textContent = 'Sicher?';
+          armT = setTimeout(() => { del.classList.remove('arm'); del.textContent = 'Löschen'; }, 3000);
+          return;
+        }
+        clearTimeout(armT);
+        deleteHist(x.t);
+        openHistory();
+        toast('Session gelöscht', null, null, 2000);
+      });
+      row.append(info, del); list.appendChild(row);
     });
     $('history').hidden = false;
   }
@@ -1414,6 +1464,11 @@ function muxMp4(opts) {
   $('btnRecDel').addEventListener('click', async () => { await discardSession(savedMeta); checkSaved(); });
 
   // ---- Start ----
+  // Startbildschirm kurz zeigen, dann sanft ausblenden
+  setTimeout(() => {
+    const sp = $('splash'); sp.classList.add('out');
+    setTimeout(() => { sp.hidden = true; }, 500);
+  }, 1300);
   updateStatus();
   requestAnimationFrame(loop);
   checkSaved();
