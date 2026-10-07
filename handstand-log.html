@@ -2,10 +2,14 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e1113">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Handstand">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Handstand-Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,6 +24,7 @@
     --mute: #a7a59d;
     --hold: #ffb703;
     --ok: #7bd88f;
+    --goal: #6ec6ff;
     --rec: #ff4d3d;
     --disp: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
     --body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -36,17 +41,22 @@
   #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
   #cam.mirror { transform: scaleX(-1); }
   .shade { position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(to bottom, rgba(0,0,0,.55) 0, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 55%, rgba(0,0,0,.65) 100%); }
+    background: linear-gradient(to bottom, rgba(0,0,0,.55) 0, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 45%, rgba(0,0,0,.7) 100%); }
 
   /* Intro */
-  #intro { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 16px;
-    padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px)); background: var(--bg); }
+  #intro { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 14px;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px)); background: var(--bg); overflow-y: auto; }
   #intro h1 { font-family: var(--disp); font-size: 3.4rem; line-height: .95; margin: 0; letter-spacing: .01em; text-transform: uppercase; }
-  #intro p { margin: 0; color: var(--mute); line-height: 1.5; max-width: 34ch; }
-  #intro ul { margin: 0; padding-left: 1.1em; color: var(--mute); line-height: 1.6; max-width: 34ch; }
+  #intro p { margin: 0; color: var(--mute); line-height: 1.5; max-width: 36ch; }
+  #intro ul { margin: 0; padding-left: 1.1em; color: var(--mute); line-height: 1.6; max-width: 36ch; }
+  #offlineNote { font-size: .82rem; }
   .err { color: var(--rec) !important; }
+  #recover { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 420px; }
+  #recover b { display: block; margin-bottom: 2px; }
+  #recover .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
   .btn { border: 0; border-radius: 14px; min-height: 58px; padding: 0 22px; font-weight: 700; font-size: 1.1rem; letter-spacing: .02em; }
+  .btn:disabled { opacity: .5; }
   .btn.primary { background: var(--fg); color: #101315; }
   .btn.stop { background: var(--rec); color: #fff; }
   .btn.ghost { background: transparent; border: 1px solid var(--line); min-height: 48px; font-weight: 600; font-size: 1rem; }
@@ -62,50 +72,77 @@
   @media (prefers-reduced-motion: reduce) { .dot.pulse { animation: none; } }
 
   /* Zeit */
-  #timerWrap { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-58%); text-align: center; padding: 0 16px; }
+  #timerWrap { position: absolute; left: 0; right: 0; top: 46%; transform: translateY(-58%); text-align: center; padding: 0 16px; }
   #timerLabel { font-size: 1rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--fg);
     text-shadow: 0 1px 8px rgba(0,0,0,.8); min-height: 1.4em; }
   #timer { font-family: var(--disp); font-weight: 700; font-size: clamp(120px, 40vw, 280px); line-height: .9;
     font-variant-numeric: tabular-nums; text-shadow: 0 2px 24px rgba(0,0,0,.7); color: rgba(241,239,233,.85); }
   #timer.live { color: var(--hold); }
   #timer.counts { color: var(--ok); }
+  #timer.goal { color: var(--goal); }
   #timer.short { color: var(--mute); }
-  #timer small { font-size: .28em; letter-spacing: .02em; margin-left: .12em; }
   #bar { width: min(70vw, 360px); height: 8px; border-radius: 99px; background: rgba(255,255,255,.2); margin: 14px auto 0; overflow: hidden; }
   #bar i { display: block; height: 100%; width: 0; background: var(--hold); }
-  #bar.full i { background: var(--ok); }
+  #bar.ok i { background: var(--ok); }
+  #bar.goal i { background: var(--goal); }
 
   /* Bedienfeld unten */
   #sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line);
     border-radius: 22px 22px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
     -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); display: flex; flex-direction: column; gap: 12px; }
+  #setup { display: flex; flex-direction: column; gap: 10px; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .row > label { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); flex: 0 0 auto; min-width: 5.5em; }
-  .seg { display: flex; flex: 1 1 auto; max-width: 260px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
-  .seg button { flex: 1; min-height: 40px; background: transparent; border: 0; font-size: .92rem; font-weight: 600; color: var(--mute); }
+  .seg, .step { display: flex; flex: 1 1 auto; max-width: 260px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+  .seg button, .step button { flex: 1; min-height: 40px; background: transparent; border: 0; font-size: .92rem; font-weight: 600; color: var(--mute); }
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button[aria-pressed="true"] { background: var(--fg); color: #101315; }
+  .step button { flex: 0 0 52px; font-size: 1.3rem; color: var(--fg); }
+  .step output { flex: 1; display: flex; align-items: center; justify-content: center; font-weight: 700; font-variant-numeric: tabular-nums;
+    border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
   #stats { display: flex; justify-content: space-around; text-align: center; }
   #stats div { display: flex; flex-direction: column; gap: 2px; }
   #stats b { font-family: var(--disp); font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
   #stats span { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
   #hint { margin: 0; font-size: .82rem; color: var(--mute); text-align: center; }
 
-  /* Rueckblick */
-  #review { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; gap: 12px;
+  /* Rueckblick & Verlauf */
+  #review, #history { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; gap: 12px;
     padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; }
-  #review h2 { font-family: var(--disp); text-transform: uppercase; font-size: 2rem; margin: 0; line-height: 1; }
-  #player { width: 100%; max-height: 46vh; background: #000; border-radius: 12px; }
-  #list { display: flex; flex-direction: column; gap: 8px; }
-  .att { display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 10px; width: 100%; text-align: left;
-    background: transparent; border: 1px solid var(--line); border-radius: 12px; min-height: 54px; padding: 8px 14px; }
+  #review { z-index: 20; }
+  #history { z-index: 30; }
+  h2 { font-family: var(--disp); text-transform: uppercase; font-size: 2rem; margin: 0; line-height: 1; }
+  #player { width: 100%; max-height: 42vh; background: #000; border-radius: 12px; flex: 0 0 auto; }
+  .empty { color: var(--mute); line-height: 1.5; margin: 0; font-size: .92rem; }
+  #list, #partList, #histList { display: flex; flex-direction: column; gap: 8px; }
+  .att { display: grid; grid-template-columns: 1fr auto; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .att.best { border-color: var(--ok); }
+  .att .play { display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 10px; text-align: left; background: transparent; border: 0; min-height: 54px; padding: 8px 14px; }
   .att .n { font-family: var(--disp); font-size: 1.5rem; color: var(--mute); }
   .att .d { font-family: var(--disp); font-size: 1.9rem; font-variant-numeric: tabular-nums; line-height: 1; }
-  .att .t { color: var(--mute); font-size: .85rem; font-variant-numeric: tabular-nums; }
-  .att.best { border-color: var(--ok); }
   .att.best .d { color: var(--ok); }
-  .actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: auto; padding-top: 4px; }
-  .empty { color: var(--mute); line-height: 1.5; margin: 0; }
+  .att .t { color: var(--mute); font-size: .8rem; font-variant-numeric: tabular-nums; text-align: right; }
+  .att .clip { background: transparent; border: 0; border-left: 1px solid var(--line); padding: 0 16px; font-size: .85rem; font-weight: 600; color: var(--mute); }
+  .actions { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+  details { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; }
+  summary { min-height: 48px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }
+  #partList { padding-bottom: 12px; }
+  .partrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9rem; color: var(--mute); }
+  .partrow button { background: transparent; border: 1px solid var(--line); border-radius: 10px; min-height: 38px; padding: 0 14px; font-weight: 600; color: var(--fg); }
+  #histStats { display: flex; justify-content: space-around; text-align: center; }
+  #histStats div { display: flex; flex-direction: column; gap: 2px; }
+  #histStats b { font-family: var(--disp); font-size: 2rem; line-height: 1; }
+  #histStats span { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+  .gl { stroke: var(--line); stroke-width: 1; }
+  .lbl { fill: var(--mute); font-size: 9px; font-family: var(--body); }
+  .bar { fill: var(--ok); }
+  .bar.rec { fill: var(--hold); }
+  .hrow { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; display: flex; justify-content: space-between; gap: 10px; font-size: .9rem; }
+  .hrow span:last-child { color: var(--mute); text-align: right; font-variant-numeric: tabular-nums; }
+
+  #toast { position: absolute; z-index: 40; left: 12px; right: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); background: #1b2024;
+    border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9rem; }
+  #toast button { background: var(--fg); color: #101315; border: 0; border-radius: 10px; min-height: 38px; padding: 0 16px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -115,19 +152,28 @@
 
   <section id="intro">
     <h1>Handstand-<br>Log</h1>
-    <p>Stell das Handy hochkant neben dich. Die App erkennt, wann du im Handstand bist, stoppt die Zeit und nimmt alles auf.</p>
+    <p>Stell das Handy hochkant neben dich, tippe auf Start und leg los. Die App erkennt den Handstand, stoppt die Zeit und nimmt die ganze Session auf.</p>
     <ul>
       <li>Ganzer Körper muss im Bild sein, im Handstand auch die Füße</li>
       <li>Deine Haltezeit wird für jeden Versuch ins Video eingeblendet</li>
       <li>Video und Zeiten bleiben auf deinem Handy</li>
     </ul>
+    <div id="recover" hidden>
+      <div><b>Letzte Session noch da</b><span id="recoverInfo" class="empty"></span><span class="empty" style="display:block;font-size:.8rem;margin-top:4px">Wird beim Start der nächsten Session gelöscht.</span></div>
+      <div class="two">
+        <button id="btnRecOpen" class="btn primary" type="button" style="min-height:48px;font-size:1rem">Öffnen</button>
+        <button id="btnRecDel" class="btn ghost" type="button">Löschen</button>
+      </div>
+    </div>
     <button id="btnCam" class="btn primary" type="button">Kamera aktivieren</button>
+    <button id="btnHistIntro" class="btn ghost" type="button">Verlauf</button>
     <p id="camErr" class="err" hidden></p>
+    <p id="offlineNote"></p>
   </section>
 
   <header id="hud" hidden>
     <div class="chip" id="status"><span class="dot" id="dot" hidden></span><span id="statusText">Bereit</span></div>
-    <div class="chip" id="best">Best –</div>
+    <button class="chip" id="best" type="button" aria-label="Verlauf öffnen">Best –</button>
   </header>
 
   <main id="timerWrap" hidden>
@@ -141,7 +187,21 @@
       <div class="row">
         <label for="segMin">Zählt ab</label>
         <div class="seg" id="segMin" data-key="minHold">
-          <button type="button" data-v="3">3 s</button><button type="button" data-v="5">5 s</button><button type="button" data-v="10">10 s</button><button type="button" data-v="20">20 s</button>
+          <button type="button" data-v="3">3 s</button><button type="button" data-v="5">5 s</button><button type="button" data-v="10">10 s</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="goalVal">Ziel</label>
+        <div class="step">
+          <button type="button" id="goalMinus" aria-label="Ziel kleiner">−</button>
+          <output id="goalVal">15 s</output>
+          <button type="button" id="goalPlus" aria-label="Ziel größer">+</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="segSpeak">Ansage</label>
+        <div class="seg" id="segSpeak" data-key="speak">
+          <button type="button" data-v="on">An</button><button type="button" data-v="off">Aus</button>
         </div>
       </div>
       <div class="row">
@@ -156,13 +216,14 @@
           <button type="button" data-v="auto">Auto</button><button type="button" data-v="manual">Manuell</button>
         </div>
       </div>
-      <button id="btnStart" class="btn primary" type="button" style="width:100%;margin-top:12px">Start</button>
+      <button id="btnStart" class="btn primary" type="button" style="width:100%;margin-top:6px">Start</button>
     </div>
     <div id="running" hidden>
       <div id="stats">
         <div><b id="stCount">0</b><span>Versuche</span></div>
         <div><b id="stBest">–</b><span>Bester</span></div>
         <div><b id="stTotal">–</b><span>Gesamt</span></div>
+        <div id="stGoalWrap"><b id="stGoal">0</b><span>Ziel</span></div>
       </div>
       <p id="hint"></p>
       <button id="btnStop" class="btn stop" type="button" style="width:100%;margin-top:12px">Session beenden</button>
@@ -171,13 +232,31 @@
 
   <section id="review" hidden>
     <h2>Deine Session</h2>
+    <p id="sumLine" class="empty"></p>
     <video id="player" controls playsinline></video>
     <div id="list"></div>
     <div class="actions">
-      <button id="btnSave" class="btn primary" type="button">Video speichern</button>
+      <button id="btnBest" class="btn primary" type="button">Besten Versuch speichern</button>
+      <button id="btnSaveAll" class="btn ghost" type="button">Ganze Session speichern</button>
+      <p class="empty" style="font-size:.8rem">Nur was du hier speicherst, landet in Fotos oder Dateien. Alles andere wird beim Start der nächsten Session gelöscht.</p>
+      <details>
+        <summary>Videoteile einzeln</summary>
+        <div id="partList"></div>
+      </details>
+      <button id="btnHistReview" class="btn ghost" type="button">Verlauf</button>
       <button id="btnNew" class="btn ghost" type="button">Neue Session</button>
     </div>
   </section>
+
+  <section id="history" hidden>
+    <h2>Verlauf</h2>
+    <div id="histStats"></div>
+    <div id="histChart"></div>
+    <div id="histList"></div>
+    <button id="btnHistClose" class="btn ghost" type="button" style="margin-top:auto">Schließen</button>
+  </section>
+
+  <div id="toast" hidden><span id="toastText"></span><button id="toastBtn" type="button" hidden></button></div>
 </div>
 
 <script>
@@ -218,18 +297,17 @@ class HoldDetector {
 
 // MediaPipe-Pose-Indizes: 11/12 Schultern, 15/16 Handgelenke, 23/24 Hueften, 25/26 Knie, 27/28 Knoechel. y waechst nach unten.
 // Zaehlt erst, wenn die Beine in der Luft sind: Fuesse (sonst Knie) muessen deutlich ueber den Hueften liegen.
-// Vorbereitung mit Haenden am Boden und Fuessen am Boden zaehlt damit nicht.
 function isInverted(lm) {
   const vis = (i, th) => lm[i] && (lm[i].visibility === undefined || lm[i].visibility > th);
   if (!(vis(11, 0.4) && vis(12, 0.4) && vis(23, 0.4) && vis(24, 0.4))) return false;
   const shY = (lm[11].y + lm[12].y) / 2;
   const hipY = (lm[23].y + lm[24].y) / 2;
-  if (!(shY - hipY > 0.07)) return false;                       // Hueften deutlich ueber den Schultern
+  if (!(shY - hipY > 0.07)) return false;
   let legY = null;
   if (vis(27, 0.3) && vis(28, 0.3)) legY = (lm[27].y + lm[28].y) / 2;
   else if (vis(25, 0.3) && vis(26, 0.3)) legY = (lm[25].y + lm[26].y) / 2;
-  if (legY === null || !(legY < hipY - 0.05)) return false;     // Beine deutlich ueber den Hueften
-  if (vis(15, 0.4) && vis(16, 0.4) && (lm[15].y + lm[16].y) / 2 < shY - 0.02) return false; // Haende unter den Schultern
+  if (legY === null || !(legY < hipY - 0.05)) return false;
+  if (vis(15, 0.4) && vis(16, 0.4) && (lm[15].y + lm[16].y) / 2 < shY - 0.02) return false;
   return true;
 }
 // </detector>
@@ -239,30 +317,78 @@ function isInverted(lm) {
   const cam = $('cam'), player = $('player');
   const POSE_VER = '0.10.14';
   const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+  const PART_MS = 5 * 60 * 1000;   // Aufnahme wird in 5-Minuten-Teile gesplittet und laufend abgelegt
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ---- Einstellungen & Bestzeit ----
-  const S = { minHold: 3, facing: 'user', mode: 'auto' };
+  // ---- Einstellungen ----
+  const S = { minHold: 5, goal: 15, facing: 'user', mode: 'auto', speak: 'on' };
   try { Object.assign(S, JSON.parse(localStorage.getItem('hs-settings') || '{}')); } catch (e) {}
+  if ([3, 5, 10].indexOf(S.minHold) < 0) S.minHold = 5;
+  if (!(S.goal >= 0 && S.goal <= 180)) S.goal = 15;
+  const saveSettings = () => { try { localStorage.setItem('hs-settings', JSON.stringify(S)); } catch (e) {} };
+
   let best = 0;
   try { best = parseFloat(localStorage.getItem('hs-best')) || 0; } catch (e) {}
 
-  const fmt = (ms) => (ms / 1000).toFixed(1).replace('.', ',');
   const fmtSec = (s) => s.toFixed(1).replace('.', ',');
   const clock = (ms) => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+  const mb = (bytes) => (bytes / 1048576).toFixed(0) + ' MB';
+  const two = (x) => String(x).padStart(2, '0');
+  const dayStr = (t) => { const d = new Date(t); return two(d.getDate()) + '.' + two(d.getMonth() + 1) + '.'; };
+  const dateTime = (t) => { const d = new Date(t); return dayStr(t) + d.getFullYear() + ' ' + two(d.getHours()) + ':' + two(d.getMinutes()); };
+
+  // ---- Speicher: IndexedDB mit Fallback auf Arbeitsspeicher ----
+  const idb = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      if (!window.indexedDB) return rej(new Error('no idb'));
+      const rq = indexedDB.open('handstand-log', 1);
+      rq.onupgradeneeded = () => { const d = rq.result; d.createObjectStore('parts'); d.createObjectStore('sessions'); };
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => rej(rq.error);
+    }));
+    const tx = (store, mode, fn) => open().then((db) => new Promise((res, rej) => {
+      const t = db.transaction(store, mode); const r = fn(t.objectStore(store));
+      t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    }));
+    return {
+      put: (s, k, v) => tx(s, 'readwrite', (o) => o.put(v, k)),
+      get: (s, k) => tx(s, 'readonly', (o) => o.get(k)),
+      del: (s, k) => tx(s, 'readwrite', (o) => o.delete(k)),
+      keys: (s) => tx(s, 'readonly', (o) => o.getAllKeys())
+    };
+  })();
+  const mem = new Map();
+  async function putBlob(key, blob) { try { await idb.put('parts', key, blob); mem.delete(key); } catch (e) { mem.set(key, blob); } }
+  async function getBlob(key) { if (mem.has(key)) return mem.get(key); return idb.get('parts', key); }
+
+  // ---- Verlauf (klein, in localStorage) ----
+  const HKEY = 'hs-history';
+  const loadHist = () => { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch (e) { return []; } };
+  const addHist = (rec) => { const h = loadHist(); h.push(rec); try { localStorage.setItem(HKEY, JSON.stringify(h.slice(-200))); } catch (e) {} };
 
   // ---- Zustand ----
   let phase = 'intro';              // intro | idle | session | stopping | review
-  let stream = null, rec = null, chunks = [], recStart = 0, wakeLock = null;
+  let stream = null, wakeLock = null, recStream = null, canvas = null, g2d = null, cstream = null, baked = false;
+  let parts = [], curPart = null, sessionId = null, sessionStart = 0, sessionStartedAt = 0, attempts = [];
+  let review = null, loadedPart = -1, partUrl = null, stopAt = null;
   let landmarker = null, poseState = 'idle';   // idle | loading | ready | failed
-  let lastDet = 0, lastDraw = 0, lastResult = null, milestone = 0;
-  let canvas = null, g2d = null, cstream = null, baked = false;
-  let attempts = [], sessionBlob = null, sessionUrl = null, stopAt = null;
+  let lastDet = 0, lastDraw = 0, lastResult = null, flags = { counted: false, goal: false };
+  let actx = null, clipBusy = false, stopArmed = false, newArmed = false, toastTimer = null;
   const det = new HoldDetector(500, 700);
-  let actx = null;
-
   const useAuto = () => S.mode === 'auto' && poseState === 'ready';
 
-  // ---- Ton ----
+  // ---- Hinweise (Toast) ----
+  function toast(text, btnLabel, btnFn, ms) {
+    clearTimeout(toastTimer);
+    $('toastText').textContent = text;
+    const b = $('toastBtn'); b.hidden = !btnLabel;
+    if (btnLabel) { b.textContent = btnLabel; b.onclick = btnFn; }
+    $('toast').hidden = false;
+    if (ms) toastTimer = setTimeout(() => { $('toast').hidden = true; }, ms);
+  }
+
+  // ---- Ton & Sprache ----
   function beep(freq, dur) {
     if (!actx) return;
     try {
@@ -272,9 +398,24 @@ function isInverted(lm) {
       o.start(); o.stop(actx.currentTime + (dur || 0.12));
     } catch (e) {}
   }
+  function goalSignal() {
+    beep(880, 0.14);
+    setTimeout(() => beep(1100, 0.14), 170);
+    setTimeout(() => beep(1320, 0.3), 340);
+    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+    say('Ziel erreicht');
+  }
+  function say(text) {
+    if (S.speak !== 'on' || !('speechSynthesis' in window)) return;
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'de-DE'; u.rate = 1;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    } catch (e) {}
+  }
 
-  // ---- Segmente ----
-  function paintSegs() {
+  // ---- Einstellungs-Bedienung ----
+  function paintSettings() {
     document.querySelectorAll('.seg').forEach((seg) => {
       const key = seg.dataset.key;
       seg.querySelectorAll('button').forEach((b) => {
@@ -282,26 +423,26 @@ function isInverted(lm) {
         b.setAttribute('aria-pressed', String(S[key] === v));
       });
     });
+    $('goalVal').textContent = S.goal > 0 ? S.goal + ' s' : 'Aus';
   }
   document.querySelectorAll('.seg').forEach((seg) => {
     seg.addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
       const key = seg.dataset.key;
       S[key] = isNaN(+b.dataset.v) ? b.dataset.v : +b.dataset.v;
-      try { localStorage.setItem('hs-settings', JSON.stringify(S)); } catch (err) {}
-      paintSegs();
+      saveSettings(); paintSettings();
       if (key === 'facing' && stream) startCamera().catch(showCamError);
       updateStatus();
     });
   });
-  paintSegs();
+  $('goalMinus').addEventListener('click', () => { S.goal = Math.max(0, S.goal - 5); saveSettings(); paintSettings(); });
+  $('goalPlus').addEventListener('click', () => { S.goal = Math.min(180, S.goal + 5); saveSettings(); paintSettings(); });
+  paintSettings();
 
   // ---- Kamera ----
   function stopCamera() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } }
   async function startCamera() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      const e = new Error('nomedia'); e.name = 'NoMedia'; throw e;
-    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { const e = new Error('nomedia'); e.name = 'NoMedia'; throw e; }
     stopCamera();
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
@@ -318,7 +459,7 @@ function isInverted(lm) {
     else if (e && e.name === 'NoMedia') msg = 'Die Kamera geht nur über eine https-Adresse, nicht bei einer lokal geöffneten Datei.';
     else if (e && e.name === 'NotFoundError') msg = 'Es wurde keine Kamera gefunden.';
     el.textContent = msg; el.hidden = false;
-    if (phase !== 'intro') { $('intro').hidden = false; phase = 'intro'; }
+    if (phase !== 'intro' && phase !== 'review') showIntro();
   }
 
   // ---- Pose-Erkennung laden ----
@@ -334,6 +475,7 @@ function isInverted(lm) {
       });
       try { landmarker = await make('GPU'); } catch (e) { landmarker = await make('CPU'); }
       poseState = 'ready';
+      if (navigator.serviceWorker) navigator.serviceWorker.ready.then(() => { $('offlineNote').textContent = 'Offline-Nutzung bereit'; });
     } catch (e) {
       poseState = 'failed';
     }
@@ -347,38 +489,49 @@ function isInverted(lm) {
       if (S.mode === 'manual') txt = 'Manuell';
       else if (poseState === 'loading') txt = 'Erkennung lädt …';
       else if (poseState === 'failed') txt = 'Erkennung fehlt, Manuell';
-      else txt = 'Bereit';
     } else if (phase === 'session') { rec_ = true; txt = det.holding ? 'Handstand!' : 'Aufnahme'; }
+    else if (phase === 'stopping') txt = 'Speichere …';
     $('statusText').textContent = txt;
     $('dot').hidden = !rec_;
     $('dot').classList.toggle('pulse', rec_);
     $('best').textContent = 'Best ' + (best ? fmtSec(best) + ' s' : '–');
   }
 
-  // ---- Wake Lock ----
+  // ---- Bildschirm wachhalten ----
   async function lockScreen() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
   function unlockScreen() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && phase === 'session') lockScreen(); });
 
-  // ---- Ablauf ----
+  // ---- Screens ----
+  function showIntro() {
+    phase = 'intro';
+    ['hud', 'timerWrap', 'sheet', 'review'].forEach((id) => { $(id).hidden = true; });
+    $('intro').hidden = false;
+  }
+  function showIdle() {
+    phase = 'idle';
+    $('intro').hidden = true; $('review').hidden = true;
+    $('hud').hidden = false; $('timerWrap').hidden = false; $('sheet').hidden = false;
+    $('setup').hidden = false; $('running').hidden = true;
+    $('timerLabel').textContent = ''; setTimer('0,0', 'short'); setBar(0, '');
+    updateStatus();
+  }
+
+  // ---- Session: Start ----
   function pickMime() {
     if (!window.MediaRecorder) return '';
     const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
     return types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
   }
 
-  // Start ohne Vorlauf: Aufnahme beginnt sofort, Handy einfach hinstellen und irgendwann loslegen.
   function beginSession() {
-    if (!stream) return;
+    if (!stream || phase !== 'idle') return;
     try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
-    phase = 'session';
-    chunks = []; attempts = []; lastResult = null; det.reset(); milestone = 0;
-    $('setup').hidden = true; $('running').hidden = false;
-    $('stCount').textContent = '0'; $('stBest').textContent = '–'; $('stTotal').textContent = '–';
+    try { if ('speechSynthesis' in window) { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('')); } } catch (e) {}
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 
-    // Aufgenommen wird ein Canvas: Kamerabild plus eingeblendete Haltezeit.
-    let recStream = stream;
-    baked = false;
+    // Aufgenommen wird ein Canvas: Kamerabild plus eingeblendete Haltezeit (Fallback: rohes Kamerabild).
+    recStream = stream; baked = false;
     try {
       canvas = canvas || document.createElement('canvas');
       if (!canvas.isConnected) {
@@ -386,31 +539,191 @@ function isInverted(lm) {
         document.body.appendChild(canvas);
       }
       const vw = cam.videoWidth || 720, vh = cam.videoHeight || 1280;
-      const k = Math.min(1, 1280 / Math.max(vw, vh));
+      const k = Math.min(1, 960 / Math.max(vw, vh));
       canvas.width = Math.round(vw * k); canvas.height = Math.round(vh * k);
       g2d = canvas.getContext('2d');
-      if (canvas.captureStream) { cstream = canvas.captureStream(30); recStream = cstream; baked = true; drawFrame(performance.now()); }
+      if (canvas.captureStream) { cstream = canvas.captureStream(30); recStream = cstream; baked = true; }
     } catch (e) { recStream = stream; baked = false; }
 
-    const mime = pickMime();
-    const opts = { videoBitsPerSecond: 1500000 };
-    if (mime) opts.mimeType = mime;
-    try { rec = new MediaRecorder(recStream, opts); }
-    catch (e) { rec = new MediaRecorder(recStream); }
-    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    rec.onstart = () => { recStart = performance.now(); };
-    rec.onstop = finishSession;
-    recStart = performance.now();
-    rec.start(1000);
-    lockScreen();
-    beep(1320, 0.4);
-    $('btnStop').textContent = 'Session beenden';
+    attempts = []; parts = []; lastResult = null; det.reset(); flags = { counted: false, goal: false };
+    sessionId = 's' + Date.now(); sessionStartedAt = Date.now(); sessionStart = performance.now();
+    try { if (baked) drawFrame(performance.now()); startPart(); }
+    catch (e) {
+      toast('Dieser Browser kann hier nicht aufnehmen.', null, null, 5000);
+      return;
+    }
+    phase = 'session';
+    $('setup').hidden = true; $('running').hidden = false;
+    $('btnStop').disabled = false; $('btnStop').textContent = 'Session beenden';
+    $('stGoalWrap').hidden = !(S.goal > 0);
+    renderStats();
     $('hint').textContent = (useAuto() ? 'Automatische Erkennung läuft. ' : 'Manuell: Tippe auf die Zeit zum Starten und Stoppen. ')
       + (baked ? 'Die Haltezeit wird ins Video eingeblendet.' : 'Dieses Gerät kann die Zeit nicht ins Video einblenden.');
+    purgeOld(sessionId).then(() => saveMeta(false));
+    lockScreen(); beep(1320, 0.4); updateStatus();
+  }
+
+  // ---- Aufnahme in Teilen ----
+  function startPart() {
+    const n = parts.length;
+    const mime = pickMime();
+    const opts = { videoBitsPerSecond: 1000000 };
+    if (mime) opts.mimeType = mime;
+    let r;
+    try { r = new MediaRecorder(recStream, opts); } catch (e) { r = new MediaRecorder(recStream); }
+    const p = { n, key: sessionId + '-' + n, start: performance.now(), rec: r, chunks: [], stopped: false, stored: false, size: 0, durMs: 0, type: '' };
+    r.ondataavailable = (e) => { if (e.data && e.data.size) p.chunks.push(e.data); };
+    r.onstart = () => { p.start = performance.now(); };
+    r.onstop = () => onPartStop(p);
+    r.start(1000);
+    parts.push(p); curPart = p;
+  }
+
+  async function onPartStop(p) {
+    p.stopped = true; p.durMs = Math.max(0, performance.now() - p.start);
+    const type = ((p.rec && p.rec.mimeType) || pickMime() || 'video/webm').split(';')[0];
+    if (p.chunks.length) {
+      const blob = new Blob(p.chunks, { type });
+      p.size = blob.size; p.type = type; p.chunks = [];
+      await putBlob(p.key, blob);
+    }
+    p.stored = true;
+    saveMeta(false);
+    if (phase === 'stopping' && parts.every((x) => x.stored)) finishSession();
+  }
+
+  // Nach 5 Minuten, wenn gerade kein Handstand laeuft: aktuellen Teil abschliessen und ablegen, neuen starten.
+  function maybeRotate(now) {
+    if (!curPart || det.holding || det.invSince !== null) return;
+    if (now - curPart.start < PART_MS) return;
+    try {
+      const old = curPart;
+      try { old.rec.stop(); } catch (e) {}
+      startPart();
+    } catch (e) { curPart.start = now; }
+  }
+
+  const partSummary = () => parts.filter((p) => p.stored && p.size > 0).map((p) => ({ n: p.n, key: p.key, size: p.size, durMs: p.durMs, type: p.type }));
+  async function saveMeta(finished) {
+    const m = { id: sessionId, startedAt: sessionStartedAt, finished: !!finished, minHold: S.minHold, goal: S.goal, attempts, parts: partSummary() };
+    try { await idb.put('sessions', sessionId, m); } catch (e) {}
+  }
+
+  // ---- Session: Ende ----
+  function stopSession() {
+    if (phase !== 'session') return;
+    if (det.holding) onEvent(det.forceEnd(performance.now()));
+    phase = 'stopping'; unlockScreen(); updateStatus();
+    $('hint').textContent = 'Aufnahme wird gespeichert …'; $('btnStop').disabled = true;
+    parts.forEach((p) => { if (!p.stopped) { try { p.rec.stop(); } catch (e) { p.stopped = true; p.stored = true; } } });
+    if (parts.every((x) => x.stored)) finishSession();
+  }
+
+  async function finishSession() {
+    if (phase !== 'stopping') return;
+    phase = 'review';
+    if (cstream) { cstream.getTracks().forEach((t) => t.stop()); cstream = null; }
+    await saveMeta(true);
+    review = { id: sessionId, startedAt: sessionStartedAt, attempts: attempts.slice(), parts: partSummary(), finished: true };
+    const total = attempts.reduce((s, a) => s + a.dur, 0);
+    addHist({ t: sessionStartedAt, n: attempts.length, best: attempts.reduce((m, a) => Math.max(m, a.dur), 0), total,
+      goalHits: attempts.filter((a) => a.goal).length, minHold: S.minHold, goal: S.goal,
+      dur: Math.round((performance.now() - sessionStart) / 1000) });
+    showReview();
+  }
+
+  // ---- Ereignisse ----
+  const partAt = (t) => { for (let i = parts.length - 1; i >= 0; i--) if (parts[i].start <= t) return parts[i]; return parts[0]; };
+
+  function onEvent(ev) {
+    if (!ev) return;
+    if (ev.type === 'start') { flags = { counted: false, goal: false }; beep(660, 0.1); updateStatus(); return; }
+    const now = performance.now();
+    const dur = (ev.end - ev.start) / 1000;
+    if (dur >= S.minHold) {
+      const p = partAt(ev.start);
+      const goal = S.goal > 0 && dur >= S.goal;
+      attempts.push({ part: p.n, vStart: (ev.start - p.start) / 1000, vEnd: (ev.end - p.start) / 1000, dur, goal, at: (ev.start - sessionStart) / 1000 });
+      lastResult = { text: fmtSec(dur), label: 'Versuch ' + attempts.length, until: now + 6000, cls: goal ? 'goal' : 'counts', vid: true, n: attempts.length, goal };
+      if (dur > best) { best = dur; try { localStorage.setItem('hs-best', String(best)); } catch (e) {} }
+      if (!goal) beep(990, 0.25);
+      say(Math.floor(dur) + ' Sekunden');
+      renderStats(); saveMeta(false);
+    } else {
+      lastResult = { text: fmtSec(dur), label: 'Zu kurz, nicht gezählt', until: now + 3500, cls: 'short', vid: false };
+    }
     updateStatus();
   }
 
-  // Zeichnet Kamerabild + Zeit-Einblendung auf das Aufnahme-Canvas.
+  function renderStats() {
+    $('stCount').textContent = String(attempts.length);
+    const top = attempts.reduce((m, a) => Math.max(m, a.dur), 0);
+    const total = attempts.reduce((s, a) => s + a.dur, 0);
+    $('stBest').textContent = top ? fmtSec(top) : '–';
+    $('stTotal').textContent = total ? fmtSec(total) : '–';
+    $('stGoal').textContent = String(attempts.filter((a) => a.goal).length);
+  }
+
+  // ---- Schleife: Erkennung, Aufnahme-Canvas, Anzeige ----
+  function loop(now) {
+    requestAnimationFrame(loop);
+    if (phase !== 'session') return;
+    if (baked && now - lastDraw >= 30) { lastDraw = now; drawFrame(now); }
+    if (useAuto() && cam.readyState >= 2 && now - lastDet > 80) {
+      lastDet = now;
+      try {
+        const res = landmarker.detectForVideo(cam, now);
+        const lm = res && res.landmarks && res.landmarks[0];
+        onEvent(det.feed(lm ? isInverted(lm) : false, now));
+      } catch (e) {}
+    }
+    maybeRotate(now);
+    renderSession(now);
+  }
+
+  function setTimer(text, cls) {
+    const t = $('timer');
+    if (t.textContent !== text) t.textContent = text;
+    t.className = cls;
+  }
+  function setBar(frac, cls) {
+    $('bar').querySelector('i').style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+    $('bar').className = cls || '';
+  }
+
+  function renderSession(now) {
+    $('statusText').textContent = (det.holding ? 'Handstand! ' : 'REC ') + clock(now - sessionStart);
+    if (det.holding) {
+      const endT = det.notSince !== null ? det.lastInv : now;   // friert ein, sobald die Beine unten sind
+      const sec = Math.max(0, endT - det.holdStart) / 1000;
+      const counts = sec >= S.minHold, goalHit = S.goal > 0 && sec >= S.goal;
+      if (counts && !flags.counted) { flags.counted = true; if (!(S.goal > 0 && S.goal <= S.minHold)) beep(1000, 0.1); }
+      if (goalHit && !flags.goal) { flags.goal = true; goalSignal(); }
+      // Unter der Mindestzeit laeuft keine Zahl, nur der Balken. Ab der Mindestzeit erscheint die volle Zeit.
+      $('timerLabel').textContent = goalHit ? 'Ziel erreicht' : counts ? (S.goal > 0 ? 'Ziel ' + S.goal + ' s' : 'Zählt') : 'Halten';
+      setTimer(counts ? fmtSec(sec) : ' ', goalHit ? 'goal' : counts ? 'counts' : 'live');
+      if (!counts) setBar(sec / S.minHold, '');
+      else if (S.goal > S.minHold) setBar(sec / S.goal, goalHit ? 'goal' : 'ok');
+      else setBar(1, goalHit ? 'goal' : 'ok');
+    } else if (lastResult && now < lastResult.until) {
+      $('timerLabel').textContent = lastResult.label;
+      setTimer(lastResult.text, lastResult.cls);
+      setBar(lastResult.vid ? 1 : 0, lastResult.cls === 'goal' ? 'goal' : lastResult.vid ? 'ok' : '');
+    } else {
+      $('timerLabel').textContent = useAuto() ? 'Warte auf Handstand' : 'Tippe zum Starten';
+      setTimer('0,0', 'short');
+      setBar(0, '');
+    }
+  }
+
+  // Manuell: Tipp auf die Zeit startet/stoppt
+  $('timerWrap').addEventListener('click', () => {
+    if (phase !== 'session' || useAuto()) return;
+    const now = performance.now();
+    onEvent(det.holding ? det.forceEnd(now) : det.forceStart(now));
+  });
+
+  // ---- Einblendung ins aufgenommene Video (klein, unten rechts) ----
   function roundRect(g, x, y, w, h, r) {
     g.beginPath();
     g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
@@ -422,21 +735,20 @@ function isInverted(lm) {
     g2d.drawImage(cam, 0, 0, w, h);
     let label = null, text = null, color = null;
     if (det.holding) {
-      const endT = det.notSince !== null ? det.lastInv : now;   // Zeit friert ein, sobald die Beine unten sind
+      const endT = det.notSince !== null ? det.lastInv : now;
       const sec = Math.max(0, endT - det.holdStart) / 1000;
-      // Erst ab der gewaehlten Mindestzeit sichtbar, zeigt dann direkt die volle Haltezeit und zaehlt weiter.
-      if (sec >= S.minHold) {
-        label = 'Versuch ' + (attempts.length + 1);
+      if (sec >= S.minHold) {   // erst ab der Mindestzeit sichtbar, dann direkt die volle Zeit
+        const goalHit = S.goal > 0 && sec >= S.goal;
+        label = 'Versuch ' + (attempts.length + 1) + (goalHit ? ' · Ziel' : '');
         text = fmtSec(sec) + ' s';
-        color = '#7bd88f';
+        color = goalHit ? '#6ec6ff' : '#7bd88f';
       }
     } else if (lastResult && lastResult.vid && now < lastResult.until) {
-      label = 'Versuch ' + lastResult.n;
+      label = 'Versuch ' + lastResult.n + (lastResult.goal ? ' · Ziel' : '');
       text = lastResult.text + ' s';
-      color = '#7bd88f';
+      color = lastResult.goal ? '#6ec6ff' : '#7bd88f';
     }
     if (!text) return;
-    // Klein unten rechts, damit die Anzeige nicht ueber dir im Bild liegt.
     const nf = Math.round(w * 0.085), lf = Math.round(w * 0.032), pad = Math.round(w * 0.022), m = Math.round(w * 0.035);
     const face = '"Barlow Condensed","Arial Narrow",Arial,sans-serif';
     g2d.textAlign = 'center'; g2d.textBaseline = 'alphabetic';
@@ -457,176 +769,288 @@ function isInverted(lm) {
     g2d.fillText(text, cx, by + pad * 1.2 + lf + nf * 0.85);
   }
 
-  function stopSession() {
-    if (phase !== 'session') return;
-    const now = performance.now();
-    if (det.holding) onEvent(det.forceEnd(now));
-    phase = 'stopping';
-    try { rec.stop(); } catch (e) { finishSession(); }
-    unlockScreen();
+  // ---- Hilfen fuer Videoelemente ----
+  function waitEvent(el, ev, ms) {
+    return new Promise((res, rej) => {
+      const t = setTimeout(() => { el.removeEventListener(ev, h); rej(new Error('timeout ' + ev)); }, ms || 10000);
+      const h = () => { clearTimeout(t); el.removeEventListener(ev, h); res(); };
+      el.addEventListener(ev, h);
+    });
   }
-
-  function onEvent(ev) {
-    if (!ev) return;
-    if (ev.type === 'start') { milestone = 0; beep(660, 0.1); updateStatus(); return; }
-    const dur = (ev.end - ev.start) / 1000;
-    if (dur >= S.minHold) {
-      attempts.push({ vStart: (ev.start - recStart) / 1000, vEnd: (ev.end - recStart) / 1000, dur });
-      lastResult = { text: fmtSec(dur), label: 'Versuch ' + attempts.length, until: performance.now() + 6000, ok: true, vid: true, n: attempts.length };
-      if (dur > best) {
-        best = dur;
-        try { localStorage.setItem('hs-best', String(best)); } catch (e) {}
-      }
-      beep(990, 0.25);
-      renderStats();
-    } else {
-      lastResult = { text: fmtSec(dur), label: 'Zu kurz, nicht gezählt', until: performance.now() + 3500, ok: false };
-    }
-    updateStatus();
-  }
-
-  function renderStats() {
-    $('stCount').textContent = String(attempts.length);
-    const top = attempts.reduce((m, a) => Math.max(m, a.dur), 0);
-    const total = attempts.reduce((s, a) => s + a.dur, 0);
-    $('stBest').textContent = top ? fmtSec(top) : '–';
-    $('stTotal').textContent = total ? fmtSec(total) : '–';
-  }
-
-  // ---- Render- und Erkennungsschleife ----
-  function loop(now) {
-    requestAnimationFrame(loop);
-    if (phase === 'session') {
-      if (baked && now - lastDraw >= 30) { lastDraw = now; drawFrame(now); }
-      if (useAuto() && cam.readyState >= 2 && now - lastDet > 80) {
-        lastDet = now;
-        try {
-          const res = landmarker.detectForVideo(cam, now);
-          const lm = res && res.landmarks && res.landmarks[0];
-          onEvent(det.feed(lm ? isInverted(lm) : false, now));
-        } catch (e) {}
-      }
-      renderSession(now);
-    }
-  }
-
-  function setTimer(text, cls) {
-    const t = $('timer');
-    if (t.textContent !== text) t.textContent = text;
-    t.className = cls;
-  }
-  function setBar(frac, full) {
-    $('bar').querySelector('i').style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
-    $('bar').classList.toggle('full', !!full);
-  }
-
-  function renderSession(now) {
-    $('statusText').textContent = (det.holding ? 'Handstand! ' : 'REC ') + clock(now - recStart);
-    if (det.holding) {
-      const endT = det.notSince !== null ? det.lastInv : now;   // friert ein, sobald die Beine unten sind
-      const ms = Math.max(0, endT - det.holdStart), sec = ms / 1000;
-      const counts = sec >= S.minHold;
-      // Unter der Mindestzeit laeuft keine Zahl, nur der Fortschrittsbalken. Ab der Mindestzeit erscheint die volle Zeit.
-      $('timerLabel').textContent = counts ? 'Zählt' : 'Halten';
-      setTimer(counts ? fmt(ms) : ' ', counts ? 'counts' : 'live');
-      setBar(sec / S.minHold, counts);
-      const m = Math.floor(sec / 10);
-      if (m > milestone) { milestone = m; beep(1200, 0.2); }
-    } else if (lastResult && now < lastResult.until) {
-      $('timerLabel').textContent = lastResult.label;
-      setTimer(lastResult.text, lastResult.ok ? 'counts' : 'short');
-      setBar(lastResult.ok ? 1 : 0, lastResult.ok);
-    } else {
-      $('timerLabel').textContent = useAuto() ? 'Warte auf Handstand' : 'Tippe zum Starten';
-      setTimer('0,0', 'short');
-      setBar(0, false);
-    }
-  }
-
-  // Manuell: Tipp auf die Zeit startet/stoppt
-  $('timerWrap').addEventListener('click', () => {
-    if (phase !== 'session' || useAuto()) return;
-    const now = performance.now();
-    onEvent(det.holding ? det.forceEnd(now) : det.forceStart(now));
-  });
-
-  // ---- Ende & Rueckblick ----
-  function finishSession() {
-    if (phase === 'review') return;
-    if (cstream) { cstream.getTracks().forEach((t) => t.stop()); cstream = null; }
-    const type = ((rec && rec.mimeType) || pickMime() || 'video/webm').split(';')[0];
-    sessionBlob = new Blob(chunks, { type });
-    if (sessionUrl) URL.revokeObjectURL(sessionUrl);
-    sessionUrl = URL.createObjectURL(sessionBlob);
-    phase = 'review';
-    $('timerWrap').hidden = true; $('sheet').hidden = true; $('hud').hidden = true;
-    $('review').hidden = false;
-    player.src = sessionUrl; player.load();
-    renderList();
-  }
-
   // WebM aus MediaRecorder meldet oft keine Dauer; das hier erzwingt sie, damit Springen klappt.
-  player.addEventListener('loadedmetadata', () => {
-    if (player.duration === Infinity) {
-      player.currentTime = 1e101;
-      const h = () => { player.removeEventListener('timeupdate', h); player.currentTime = 0; };
-      player.addEventListener('timeupdate', h);
-    }
-  });
+  function fixDuration(v) {
+    return new Promise((res) => {
+      if (v.duration !== Infinity) return res();
+      const h = () => { v.removeEventListener('timeupdate', h); v.currentTime = 0; setTimeout(res, 60); };
+      v.addEventListener('timeupdate', h);
+      v.currentTime = 1e101;
+      setTimeout(() => { v.removeEventListener('timeupdate', h); res(); }, 2500);
+    });
+  }
+  function seekTo(v, t) {
+    return new Promise((res) => {
+      if (Math.abs(v.currentTime - t) < 0.05) return res();
+      const h = () => { clearTimeout(to); v.removeEventListener('seeked', h); res(); };
+      const to = setTimeout(h, 2500);
+      v.addEventListener('seeked', h);
+      v.currentTime = t;
+    });
+  }
+
+  // ---- Rueckblick ----
   player.addEventListener('timeupdate', () => {
     if (stopAt !== null && player.currentTime >= stopAt) { player.pause(); stopAt = null; }
   });
 
-  function renderList() {
-    const list = $('list'); list.textContent = '';
-    if (!attempts.length) {
-      const p = document.createElement('p'); p.className = 'empty';
-      p.textContent = 'Kein Handstand erkannt. Das ganze Video kannst du trotzdem speichern. Tipp: Handy hochkant, ganzer Körper im Bild, gutes Licht.';
-      list.appendChild(p); return;
-    }
-    const top = Math.max.apply(null, attempts.map((a) => a.dur));
-    attempts.forEach((a, i) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'att' + (a.dur === top ? ' best' : '');
-      const n = document.createElement('span'); n.className = 'n'; n.textContent = String(i + 1);
-      const d = document.createElement('span'); d.className = 'd'; d.textContent = fmtSec(a.dur) + ' s';
-      const t = document.createElement('span'); t.className = 't'; t.textContent = 'bei ' + clock(a.vStart * 1000);
-      b.append(n, d, t);
-      b.addEventListener('click', () => {
-        player.currentTime = Math.max(0, a.vStart - 2);
-        stopAt = a.vEnd + 1.5;
-        player.play().catch(() => {});
-        player.scrollIntoView({ block: 'nearest' });
-      });
-      list.appendChild(b);
-    });
+  function showReview() {
+    $('timerWrap').hidden = true; $('sheet').hidden = true; $('hud').hidden = true; $('intro').hidden = true;
+    $('review').hidden = false;
+    loadedPart = -1;
+    renderReview();
+    const first = review.attempts.length ? review.attempts[0].part : (review.parts[0] && review.parts[0].n);
+    if (first !== undefined) loadPart(first).catch(() => {});
   }
 
-  async function saveVideo() {
-    if (!sessionBlob) return;
-    const ext = sessionBlob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-    const d = new Date(), p = (x) => String(x).padStart(2, '0');
-    const name = 'handstand-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + '.' + ext;
-    const file = new File([sessionBlob], name, { type: sessionBlob.type });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file] }); return; }
-      catch (e) { if (e && e.name === 'AbortError') return; }
+  const topAttempt = () => review.attempts.reduce((m, a) => (!m || a.dur > m.dur ? a : m), null);
+
+  function renderReview() {
+    const A = review.attempts, total = A.reduce((s, a) => s + a.dur, 0), top = topAttempt();
+    $('sumLine').textContent = A.length
+      ? A.length + ' Versuche · Bester ' + fmtSec(top.dur) + ' s · Gesamt ' + fmtSec(total) + ' s · ' + review.parts.length + ' Videoteile'
+      : 'Kein Handstand erkannt. Die Videoteile kannst du trotzdem speichern. Tipp: Handy hochkant, ganzer Körper im Bild, gutes Licht.';
+    const list = $('list'); list.textContent = '';
+    A.forEach((a, i) => {
+      const row = document.createElement('div');
+      row.className = 'att' + (top && a === top ? ' best' : '');
+      const play = document.createElement('button');
+      play.type = 'button'; play.className = 'play';
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = String(i + 1);
+      const d = document.createElement('span'); d.className = 'd'; d.textContent = fmtSec(a.dur) + ' s' + (a.goal ? ' ★' : '');
+      const t = document.createElement('span'); t.className = 't'; t.textContent = 'bei ' + clock(a.at * 1000);
+      play.append(n, d, t);
+      play.addEventListener('click', () => playAttempt(a));
+      const clip = document.createElement('button');
+      clip.type = 'button'; clip.className = 'clip'; clip.textContent = 'Clip';
+      clip.addEventListener('click', () => exportClip(a, i + 1));
+      row.append(play, clip);
+      list.appendChild(row);
+    });
+    const pl = $('partList'); pl.textContent = '';
+    review.parts.forEach((p) => {
+      const row = document.createElement('div'); row.className = 'partrow';
+      const s = document.createElement('span'); s.textContent = 'Teil ' + (p.n + 1) + ' · ' + clock(p.durMs || 0) + ' · ' + mb(p.size);
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Speichern';
+      b.addEventListener('click', () => savePart(p));
+      row.append(s, b); pl.appendChild(row);
+    });
+    $('btnBest').disabled = !top;
+    $('btnBest').textContent = top ? 'Besten Versuch speichern (' + fmtSec(top.dur) + ' s)' : 'Besten Versuch speichern';
+    $('btnSaveAll').disabled = !review.parts.length;
+  }
+
+  async function loadPart(n) {
+    if (loadedPart === n) return;
+    const p = review.parts.find((x) => x.n === n);
+    if (!p) throw new Error('part');
+    const blob = await getBlob(p.key);
+    if (!blob) throw new Error('missing');
+    if (partUrl) URL.revokeObjectURL(partUrl);
+    partUrl = URL.createObjectURL(blob);
+    player.src = partUrl; player.load();
+    await waitEvent(player, 'loadedmetadata', 15000);
+    await fixDuration(player);
+    loadedPart = n;
+  }
+
+  async function playAttempt(a) {
+    try {
+      await loadPart(a.part);
+      player.currentTime = Math.max(0, a.vStart - 2);
+      stopAt = a.vEnd + 1.5;
+      await player.play();
+      player.scrollIntoView({ block: 'nearest' });
+    } catch (e) { toast('Das Video konnte nicht geladen werden.', null, null, 3500); }
+  }
+
+  const stampOf = () => { const d = new Date(review.startedAt); return d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) + '-' + two(d.getHours()) + two(d.getMinutes()); };
+  const extOf = (blob) => (blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm');
+
+  async function shareOrDownload(files) {
+    try {
+      if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files }); return true; }
+    } catch (e) { if (e && e.name === 'AbortError') return false; }
+    for (const f of files) {
+      const u = URL.createObjectURL(f);
+      const a = document.createElement('a');
+      a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 60000);
+      await sleep(500);
     }
-    const a = document.createElement('a');
-    a.href = sessionUrl; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
+    return true;
+  }
+
+  async function partFile(p) {
+    const blob = await getBlob(p.key);
+    if (!blob) throw new Error('missing');
+    const type = (blob.type || p.type || 'video/mp4').split(';')[0];
+    return new File([blob], 'handstand-' + stampOf() + '-teil' + (p.n + 1) + '.' + extOf({ type }), { type });
+  }
+  async function savePart(p) {
+    try { await shareOrDownload([await partFile(p)]); }
+    catch (e) { toast('Dieser Teil ist nicht mehr verfügbar.', null, null, 3500); }
+  }
+  async function saveAll() {
+    try { await shareOrDownload(await Promise.all(review.parts.map(partFile))); }
+    catch (e) { toast('Nicht alle Teile sind verfügbar.', null, null, 3500); }
+  }
+
+  // Schneidet einen Versuch (mit 2 s davor/danach) in Echtzeit aus dem Teilvideo. Die Zeit-Einblendung ist schon im Video.
+  async function exportClip(a, num) {
+    if (clipBusy) return;
+    clipBusy = true;
+    let url = null, v = null, cs = null;
+    try {
+      const p = review.parts.find((x) => x.n === a.part);
+      const blob = p && await getBlob(p.key);
+      if (!blob) throw new Error('missing');
+      url = URL.createObjectURL(blob);
+      v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
+      v.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:.01;pointer-events:none';
+      document.body.appendChild(v);
+      v.src = url;
+      await waitEvent(v, 'loadedmetadata', 15000);
+      await fixDuration(v);
+      const t0 = Math.max(0, a.vStart - 2), t1 = a.vEnd + 2;
+      await seekTo(v, t0);
+      const cv = document.createElement('canvas');
+      cv.width = v.videoWidth; cv.height = v.videoHeight;
+      const cx = cv.getContext('2d');
+      cx.drawImage(v, 0, 0, cv.width, cv.height);
+      if (!cv.captureStream) throw new Error('nocapture');
+      cs = cv.captureStream(30);
+      const mime = pickMime();
+      const r = new MediaRecorder(cs, mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : { videoBitsPerSecond: 1500000 });
+      const out = [];
+      r.ondataavailable = (e) => { if (e.data && e.data.size) out.push(e.data); };
+      const done = new Promise((res) => { r.onstop = res; });
+      r.start(500);
+      await v.play();
+      await new Promise((res) => {
+        const step = () => {
+          cx.drawImage(v, 0, 0, cv.width, cv.height);
+          const left = Math.max(0, Math.ceil(t1 - v.currentTime));
+          toast('Clip wird erstellt … noch ca. ' + left + ' s');
+          if (v.ended || v.currentTime >= t1) res(); else requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+      v.pause(); r.stop(); await done;
+      const type = (r.mimeType || mime || 'video/webm').split(';')[0];
+      const clipBlob = new Blob(out, { type });
+      const file = new File([clipBlob], 'handstand-' + stampOf() + '-versuch' + num + '-' + Math.floor(a.dur) + 's.' + extOf(clipBlob), { type });
+      toast('Clip fertig: Versuch ' + num + ' (' + fmtSec(a.dur) + ' s)', 'Speichern', () => { shareOrDownload([file]); });
+    } catch (e) {
+      toast('Der Clip konnte nicht erstellt werden. Speichere stattdessen den Videoteil.', null, null, 5000);
+    } finally {
+      if (cs) cs.getTracks().forEach((t) => t.stop());
+      if (v) { v.pause(); v.removeAttribute('src'); v.remove(); }
+      if (url) URL.revokeObjectURL(url);
+      clipBusy = false;
+    }
+  }
+
+  // Beim Start einer neuen Session: alles Alte aus dem internen Speicher loeschen.
+  async function purgeOld(keepId) {
+    for (const k of Array.from(mem.keys())) if (k.indexOf(keepId + '-') !== 0) mem.delete(k);
+    try {
+      for (const k of await idb.keys('sessions')) if (k !== keepId) await idb.del('sessions', k);
+      for (const k of await idb.keys('parts')) if (String(k).indexOf(keepId + '-') !== 0) await idb.del('parts', k);
+    } catch (e) {}
+    savedMeta = null; $('recover').hidden = true;
+  }
+
+  async function discardSession(meta) {
+    if (!meta) return;
+    for (const p of (meta.parts || [])) { mem.delete(p.key); try { await idb.del('parts', p.key); } catch (e) {} }
+    try { await idb.del('sessions', meta.id); } catch (e) {}
   }
 
   async function newSession() {
+    if (!newArmed) {
+      newArmed = true; $('btnNew').textContent = 'Wirklich? Nicht gespeicherte Videos gehen verloren';
+      setTimeout(() => { newArmed = false; $('btnNew').textContent = 'Neue Session'; }, 4000);
+      return;
+    }
+    newArmed = false; $('btnNew').textContent = 'Neue Session';
     player.pause(); player.removeAttribute('src'); player.load();
-    if (sessionUrl) { URL.revokeObjectURL(sessionUrl); sessionUrl = null; }
-    sessionBlob = null; attempts = []; chunks = [];
-    $('review').hidden = true;
-    $('hud').hidden = false; $('timerWrap').hidden = false; $('sheet').hidden = false;
-    $('setup').hidden = false; $('running').hidden = true;
-    $('timerLabel').textContent = ''; setTimer('0,0', 'short'); setBar(0, false);
-    phase = 'idle'; updateStatus();
-    if (!stream || !stream.active) { try { await startCamera(); } catch (e) { showCamError(e); } }
+    if (partUrl) { URL.revokeObjectURL(partUrl); partUrl = null; }
+    loadedPart = -1; stopAt = null;
+    await discardSession(review); review = null;
+    $('toast').hidden = true;
+    if (stream && stream.active) showIdle();
+    else { showIntro(); checkSaved(); }
+  }
+
+  // ---- Verlauf ----
+  function chartSvg(items) {
+    const W = 320, H = 150, L = 30, R = 8, T = 10, B = 24;
+    const maxB = Math.max.apply(null, items.map((i) => i.best).concat([10]));
+    const top = Math.ceil(maxB / 10) * 10;
+    const iw = W - L - R, ih = H - T - B, slot = iw / items.length, bw = Math.min(28, slot * 0.62);
+    const y = (v) => T + ih - (v / top) * ih;
+    let recIdx = 0; items.forEach((it, i) => { if (it.best >= items[recIdx].best) recIdx = i; });
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Beste Haltezeit pro Session" style="width:100%;height:auto">';
+    [0, top / 2, top].forEach((v) => {
+      s += '<line class="gl" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>'
+        + '<text class="lbl" x="' + (L - 4) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + Math.round(v) + '</text>';
+    });
+    items.forEach((it, i) => {
+      const x = L + slot * i + (slot - bw) / 2, h = Math.max(1, (it.best / top) * ih);
+      s += '<rect class="bar' + (i === recIdx ? ' rec' : '') + '" x="' + x.toFixed(1) + '" y="' + (T + ih - h).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2"/>';
+      if (items.length <= 7 || (items.length - 1 - i) % 2 === 0) {
+        s += '<text class="lbl" x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + dayStr(it.t).slice(0, 5) + '</text>';
+      }
+    });
+    return s + '</svg>';
+  }
+
+  function openHistory() {
+    const h = loadHist().filter((x) => x && typeof x.t === 'number');
+    const withHolds = h.filter((x) => x.n > 0);
+    const rec = h.reduce((m, x) => Math.max(m, x.best || 0), 0);
+    const tot = h.reduce((s, x) => s + (x.total || 0), 0);
+    $('histStats').innerHTML = '<div><b>' + h.length + '</b><span>Sessions</span></div>'
+      + '<div><b>' + (rec ? fmtSec(rec) : '–') + '</b><span>Rekord (s)</span></div>'
+      + '<div><b>' + Math.round(tot) + '</b><span>Haltezeit (s)</span></div>';
+    $('histChart').innerHTML = withHolds.length ? chartSvg(withHolds.slice(-14)) : '<p class="empty">Noch keine Sessions mit Handstand. Nach deiner ersten Session erscheint hier dein Verlauf.</p>';
+    const list = $('histList'); list.textContent = '';
+    h.slice().reverse().slice(0, 40).forEach((x) => {
+      const row = document.createElement('div'); row.className = 'hrow';
+      const a = document.createElement('span'); a.textContent = dateTime(x.t);
+      const b = document.createElement('span');
+      b.textContent = x.n + ' Versuche · Bester ' + (x.best ? fmtSec(x.best) + ' s' : '–') + ' · ' + Math.round(x.total || 0) + ' s';
+      row.append(a, b); list.appendChild(row);
+    });
+    $('history').hidden = false;
+  }
+
+  // ---- Gespeicherte Sessions finden (Absturz-Schutz) ----
+  let savedMeta = null;
+  async function checkSaved() {
+    $('recover').hidden = true; savedMeta = null;
+    try {
+      const keys = await idb.keys('sessions');
+      let latest = null;
+      for (const k of keys) {
+        const m = await idb.get('sessions', k);
+        if (m && m.parts && m.parts.length && (!latest || m.startedAt > latest.startedAt)) latest = m;
+      }
+      if (!latest) return;
+      savedMeta = latest;
+      $('recoverInfo').textContent = dateTime(latest.startedAt) + ': ' + latest.parts.length + ' Videoteile, ' + latest.attempts.length + ' Versuche';
+      $('recover').hidden = false;
+    } catch (e) {}
   }
 
   // ---- Buttons ----
@@ -634,21 +1058,40 @@ function isInverted(lm) {
     $('camErr').hidden = true;
     try {
       await startCamera();
-      $('intro').hidden = true;
-      $('hud').hidden = false; $('timerWrap').hidden = false; $('sheet').hidden = false;
-      phase = 'idle';
-      $('timerLabel').textContent = ''; setTimer('0,0', 'short'); setBar(0, false);
-      updateStatus();
+      showIdle();
       loadPose();
     } catch (e) { showCamError(e); }
   });
   $('btnStart').addEventListener('click', beginSession);
-  $('btnStop').addEventListener('click', stopSession);
-  $('btnSave').addEventListener('click', saveVideo);
+  $('btnStop').addEventListener('click', () => {
+    if (!stopArmed) {
+      stopArmed = true; $('btnStop').textContent = 'Nochmal tippen zum Beenden';
+      setTimeout(() => { stopArmed = false; if (phase === 'session') $('btnStop').textContent = 'Session beenden'; }, 3000);
+      return;
+    }
+    stopArmed = false; stopSession();
+  });
+  $('btnBest').addEventListener('click', () => { const t = topAttempt(); if (t) exportClip(t, review.attempts.indexOf(t) + 1); });
+  $('btnSaveAll').addEventListener('click', saveAll);
   $('btnNew').addEventListener('click', newSession);
+  $('best').addEventListener('click', openHistory);
+  $('btnHistIntro').addEventListener('click', openHistory);
+  $('btnHistReview').addEventListener('click', openHistory);
+  $('btnHistClose').addEventListener('click', () => { $('history').hidden = true; });
+  $('btnRecOpen').addEventListener('click', () => {
+    if (!savedMeta) return;
+    review = savedMeta; phase = 'review'; showReview();
+  });
+  $('btnRecDel').addEventListener('click', async () => { await discardSession(savedMeta); checkSaved(); });
 
+  // ---- Start ----
   updateStatus();
   requestAnimationFrame(loop);
+  checkSaved();
+  loadPose();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
 })();
 </script>
 </body>
