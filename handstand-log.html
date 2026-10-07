@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1113">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Handstand-Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+  /* Layout: Kamerabild als Vollbild-Hintergrund, grosse Zeit in der Mitte, Bedienfeld unten (Daumenzone) */
+  :root {
+    --bg: #0e1113;
+    --panel: rgba(14, 17, 19, .86);
+    --line: rgba(241, 239, 233, .16);
+    --fg: #f1efe9;
+    --mute: #a7a59d;
+    --hold: #ffb703;
+    --ok: #7bd88f;
+    --rec: #ff4d3d;
+    --disp: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+    --body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); overscroll-behavior: none; }
+  body { -webkit-user-select: none; user-select: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible { outline: 3px solid var(--hold); outline-offset: 2px; }
+
+  #app { position: fixed; inset: 0; overflow: hidden; }
+  #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #cam.mirror { transform: scaleX(-1); }
+  .shade { position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(0,0,0,.55) 0, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 55%, rgba(0,0,0,.65) 100%); }
+
+  /* Intro */
+  #intro { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 16px;
+    padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px)); background: var(--bg); }
+  #intro h1 { font-family: var(--disp); font-size: 3.4rem; line-height: .95; margin: 0; letter-spacing: .01em; text-transform: uppercase; }
+  #intro p { margin: 0; color: var(--mute); line-height: 1.5; max-width: 34ch; }
+  #intro ul { margin: 0; padding-left: 1.1em; color: var(--mute); line-height: 1.6; max-width: 34ch; }
+  .err { color: var(--rec) !important; }
+
+  .btn { border: 0; border-radius: 14px; min-height: 58px; padding: 0 22px; font-weight: 700; font-size: 1.1rem; letter-spacing: .02em; }
+  .btn.primary { background: var(--fg); color: #101315; }
+  .btn.stop { background: var(--rec); color: #fff; }
+  .btn.ghost { background: transparent; border: 1px solid var(--line); min-height: 48px; font-weight: 600; font-size: 1rem; }
+
+  /* HUD oben */
+  #hud { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; gap: 8px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 0; }
+  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px;
+    font-size: .85rem; font-weight: 600; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--rec); }
+  .dot.pulse { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .dot.pulse { animation: none; } }
+
+  /* Zeit */
+  #timerWrap { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-58%); text-align: center; padding: 0 16px; }
+  #timerLabel { font-size: 1rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--fg);
+    text-shadow: 0 1px 8px rgba(0,0,0,.8); min-height: 1.4em; }
+  #timer { font-family: var(--disp); font-weight: 700; font-size: clamp(120px, 40vw, 280px); line-height: .9;
+    font-variant-numeric: tabular-nums; text-shadow: 0 2px 24px rgba(0,0,0,.7); color: rgba(241,239,233,.85); }
+  #timer.live { color: var(--hold); }
+  #timer.counts { color: var(--ok); }
+  #timer.short { color: var(--mute); }
+  #timer small { font-size: .28em; letter-spacing: .02em; margin-left: .12em; }
+  #bar { width: min(70vw, 360px); height: 8px; border-radius: 99px; background: rgba(255,255,255,.2); margin: 14px auto 0; overflow: hidden; }
+  #bar i { display: block; height: 100%; width: 0; background: var(--hold); }
+  #bar.full i { background: var(--ok); }
+
+  /* Bedienfeld unten */
+  #sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line);
+    border-radius: 22px 22px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .row > label { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); flex: 0 0 auto; min-width: 5.5em; }
+  .seg { display: flex; flex: 1 1 auto; max-width: 260px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+  .seg button { flex: 1; min-height: 40px; background: transparent; border: 0; font-size: .92rem; font-weight: 600; color: var(--mute); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--fg); color: #101315; }
+  #stats { display: flex; justify-content: space-around; text-align: center; }
+  #stats div { display: flex; flex-direction: column; gap: 2px; }
+  #stats b { font-family: var(--disp); font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  #stats span { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+  #hint { margin: 0; font-size: .82rem; color: var(--mute); text-align: center; }
+
+  /* Rueckblick */
+  #review { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; gap: 12px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; }
+  #review h2 { font-family: var(--disp); text-transform: uppercase; font-size: 2rem; margin: 0; line-height: 1; }
+  #player { width: 100%; max-height: 46vh; background: #000; border-radius: 12px; }
+  #list { display: flex; flex-direction: column; gap: 8px; }
+  .att { display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: transparent; border: 1px solid var(--line); border-radius: 12px; min-height: 54px; padding: 8px 14px; }
+  .att .n { font-family: var(--disp); font-size: 1.5rem; color: var(--mute); }
+  .att .d { font-family: var(--disp); font-size: 1.9rem; font-variant-numeric: tabular-nums; line-height: 1; }
+  .att .t { color: var(--mute); font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .att.best { border-color: var(--ok); }
+  .att.best .d { color: var(--ok); }
+  .actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: auto; padding-top: 4px; }
+  .empty { color: var(--mute); line-height: 1.5; margin: 0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <video id="cam" autoplay muted playsinline></video>
+  <div class="shade"></div>
+
+  <section id="intro">
+    <h1>Handstand-<br>Log</h1>
+    <p>Stell das Handy hochkant neben dich. Die App erkennt, wann du im Handstand bist, stoppt die Zeit und nimmt alles auf.</p>
+    <ul>
+      <li>Ganzer Körper muss im Bild sein</li>
+      <li>Video und Zeiten bleiben auf deinem Handy</li>
+    </ul>
+    <button id="btnCam" class="btn primary" type="button">Kamera aktivieren</button>
+    <p id="camErr" class="err" hidden></p>
+  </section>
+
+  <header id="hud" hidden>
+    <div class="chip" id="status"><span class="dot" id="dot" hidden></span><span id="statusText">Bereit</span></div>
+    <div class="chip" id="best">Best –</div>
+  </header>
+
+  <main id="timerWrap" hidden>
+    <div id="timerLabel"></div>
+    <div id="timer">0,0</div>
+    <div id="bar"><i></i></div>
+  </main>
+
+  <section id="sheet" hidden>
+    <div id="setup">
+      <div class="row">
+        <label for="segMin">Zählt ab</label>
+        <div class="seg" id="segMin" data-key="minHold">
+          <button type="button" data-v="3">3 s</button><button type="button" data-v="10">10 s</button><button type="button" data-v="20">20 s</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="segLead">Vorlauf</label>
+        <div class="seg" id="segLead" data-key="lead">
+          <button type="button" data-v="5">5 s</button><button type="button" data-v="10">10 s</button><button type="button" data-v="15">15 s</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="segFacing">Kamera</label>
+        <div class="seg" id="segFacing" data-key="facing">
+          <button type="button" data-v="user">Selfie</button><button type="button" data-v="environment">Rückseite</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="segMode">Erkennung</label>
+        <div class="seg" id="segMode" data-key="mode">
+          <button type="button" data-v="auto">Auto</button><button type="button" data-v="manual">Manuell</button>
+        </div>
+      </div>
+      <button id="btnStart" class="btn primary" type="button" style="width:100%;margin-top:12px">Start</button>
+    </div>
+    <div id="running" hidden>
+      <div id="stats">
+        <div><b id="stCount">0</b><span>Versuche</span></div>
+        <div><b id="stBest">–</b><span>Bester</span></div>
+        <div><b id="stTotal">–</b><span>Gesamt</span></div>
+      </div>
+      <p id="hint"></p>
+      <button id="btnStop" class="btn stop" type="button" style="width:100%;margin-top:12px">Session beenden</button>
+    </div>
+  </section>
+
+  <section id="review" hidden>
+    <h2>Deine Session</h2>
+    <video id="player" controls playsinline></video>
+    <div id="list"></div>
+    <div class="actions">
+      <button id="btnSave" class="btn primary" type="button">Video speichern</button>
+      <button id="btnNew" class="btn ghost" type="button">Neue Session</button>
+    </div>
+  </section>
+</div>
+
+<script>
+// <detector>
+// Reine Logik ohne DOM: wandelt "Frame ist kopfueber ja/nein" in Start/Ende-Ereignisse um.
+class HoldDetector {
+  constructor(enterMs = 500, exitMs = 700) { this.enterMs = enterMs; this.exitMs = exitMs; this.reset(); }
+  reset() { this.invSince = null; this.lastInv = null; this.notSince = null; this.holding = false; this.holdStart = 0; }
+  feed(inv, t) {
+    if (inv) {
+      this.lastInv = t; this.notSince = null;
+      if (this.invSince === null) this.invSince = t;
+      if (!this.holding && t - this.invSince >= this.enterMs) {
+        this.holding = true; this.holdStart = this.invSince;
+        return { type: 'start', start: this.holdStart };
+      }
+    } else {
+      this.invSince = null;
+      if (this.holding) {
+        if (this.notSince === null) this.notSince = t;
+        if (t - this.notSince >= this.exitMs) {
+          const ev = { type: 'end', start: this.holdStart, end: this.lastInv };
+          this.holding = false; this.notSince = null; this.lastInv = null;
+          return ev;
+        }
+      }
+    }
+    return null;
+  }
+  forceStart(t) { this.holding = true; this.holdStart = t; this.invSince = t; this.notSince = null; this.lastInv = t; return { type: 'start', start: t }; }
+  forceEnd(t) {
+    if (!this.holding) return null;
+    const ev = { type: 'end', start: this.holdStart, end: t };
+    this.holding = false; this.invSince = null; this.notSince = null; this.lastInv = null;
+    return ev;
+  }
+}
+
+// MediaPipe-Pose-Indizes: 11/12 Schultern, 15/16 Handgelenke, 23/24 Hueften, 27/28 Knoechel. y waechst nach unten.
+function isInverted(lm) {
+  const ok = (i) => lm[i] && (lm[i].visibility === undefined || lm[i].visibility > 0.4);
+  if (!(ok(11) && ok(12) && ok(23) && ok(24))) return false;
+  const shY = (lm[11].y + lm[12].y) / 2;
+  const hipY = (lm[23].y + lm[24].y) / 2;
+  if (!(shY - hipY > 0.07)) return false;                       // Hueften deutlich ueber den Schultern
+  if (ok(27) && ok(28) && (lm[27].y + lm[28].y) / 2 > hipY) return false;   // Fuesse ueber den Hueften
+  if (ok(15) && ok(16) && (lm[15].y + lm[16].y) / 2 < shY - 0.02) return false; // Haende unter den Schultern
+  return true;
+}
+// </detector>
+
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const cam = $('cam'), player = $('player');
+  const POSE_VER = '0.10.14';
+  const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+
+  // ---- Einstellungen & Bestzeit ----
+  const S = { minHold: 3, lead: 10, facing: 'user', mode: 'auto' };
+  try { Object.assign(S, JSON.parse(localStorage.getItem('hs-settings') || '{}')); } catch (e) {}
+  let best = 0;
+  try { best = parseFloat(localStorage.getItem('hs-best')) || 0; } catch (e) {}
+
+  const fmt = (ms) => (ms / 1000).toFixed(1).replace('.', ',');
+  const fmtSec = (s) => s.toFixed(1).replace('.', ',');
+  const clock = (ms) => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
+  // ---- Zustand ----
+  let phase = 'intro';              // intro | idle | countdown | session | review
+  let stream = null, rec = null, chunks = [], recStart = 0, wakeLock = null;
+  let landmarker = null, poseState = 'idle';   // idle | loading | ready | failed
+  let countdownEnd = 0, lastCount = -1;
+  let lastDet = 0, lastResult = null, milestone = 0;
+  let attempts = [], sessionBlob = null, sessionUrl = null, stopAt = null;
+  const det = new HoldDetector(500, 700);
+  let actx = null;
+
+  const useAuto = () => S.mode === 'auto' && poseState === 'ready';
+
+  // ---- Ton ----
+  function beep(freq, dur) {
+    if (!actx) return;
+    try {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = freq; g.gain.value = 0.18;
+      o.connect(g); g.connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + (dur || 0.12));
+    } catch (e) {}
+  }
+
+  // ---- Segmente ----
+  function paintSegs() {
+    document.querySelectorAll('.seg').forEach((seg) => {
+      const key = seg.dataset.key;
+      seg.querySelectorAll('button').forEach((b) => {
+        const v = isNaN(+b.dataset.v) ? b.dataset.v : +b.dataset.v;
+        b.setAttribute('aria-pressed', String(S[key] === v));
+      });
+    });
+  }
+  document.querySelectorAll('.seg').forEach((seg) => {
+    seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      const key = seg.dataset.key;
+      S[key] = isNaN(+b.dataset.v) ? b.dataset.v : +b.dataset.v;
+      try { localStorage.setItem('hs-settings', JSON.stringify(S)); } catch (err) {}
+      paintSegs();
+      if (key === 'facing' && stream) startCamera().catch(showCamError);
+      updateStatus();
+    });
+  });
+  paintSegs();
+
+  // ---- Kamera ----
+  function stopCamera() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } }
+  async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const e = new Error('nomedia'); e.name = 'NoMedia'; throw e;
+    }
+    stopCamera();
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: S.facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }
+    });
+    cam.srcObject = stream;
+    await cam.play();
+    cam.classList.toggle('mirror', S.facing === 'user');
+  }
+  function showCamError(e) {
+    const el = $('camErr');
+    let msg = 'Die Kamera konnte nicht gestartet werden.';
+    if (e && e.name === 'NotAllowedError') msg = 'Der Kamerazugriff ist blockiert. Erlaube die Kamera in den Browser-Einstellungen für diese Seite und lade neu.';
+    else if (e && e.name === 'NoMedia') msg = 'Die Kamera geht nur über eine https-Adresse, nicht bei einer lokal geöffneten Datei.';
+    else if (e && e.name === 'NotFoundError') msg = 'Es wurde keine Kamera gefunden.';
+    el.textContent = msg; el.hidden = false;
+    if (phase !== 'intro') { $('intro').hidden = false; phase = 'intro'; }
+  }
+
+  // ---- Pose-Erkennung laden ----
+  async function loadPose() {
+    if (poseState === 'loading' || poseState === 'ready') return;
+    poseState = 'loading'; updateStatus();
+    try {
+      const base = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + POSE_VER;
+      const vision = await import(base + '/vision_bundle.mjs');
+      const fileset = await vision.FilesetResolver.forVisionTasks(base + '/wasm');
+      const make = (delegate) => vision.PoseLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: MODEL_URL, delegate }, runningMode: 'VIDEO', numPoses: 1
+      });
+      try { landmarker = await make('GPU'); } catch (e) { landmarker = await make('CPU'); }
+      poseState = 'ready';
+    } catch (e) {
+      poseState = 'failed';
+    }
+    updateStatus();
+  }
+
+  // ---- Status ----
+  function updateStatus() {
+    let txt = 'Bereit', rec_ = false;
+    if (phase === 'idle') {
+      if (S.mode === 'manual') txt = 'Manuell';
+      else if (poseState === 'loading') txt = 'Erkennung lädt …';
+      else if (poseState === 'failed') txt = 'Erkennung fehlt, Manuell';
+      else txt = 'Bereit';
+    } else if (phase === 'countdown') txt = 'Vorlauf';
+    else if (phase === 'session') { rec_ = true; txt = det.holding ? 'Handstand!' : 'Aufnahme'; }
+    $('statusText').textContent = txt;
+    $('dot').hidden = !rec_;
+    $('dot').classList.toggle('pulse', rec_);
+    $('best').textContent = 'Best ' + (best ? fmtSec(best) + ' s' : '–');
+  }
+
+  // ---- Wake Lock ----
+  async function lockScreen() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+  function unlockScreen() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (phase === 'session' || phase === 'countdown')) lockScreen(); });
+
+  // ---- Ablauf ----
+  function pickMime() {
+    if (!window.MediaRecorder) return '';
+    const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    return types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
+  }
+
+  function startCountdown() {
+    if (!stream) return;
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
+    phase = 'countdown';
+    countdownEnd = performance.now() + S.lead * 1000; lastCount = -1;
+    $('setup').hidden = true; $('running').hidden = false;
+    $('btnStop').textContent = 'Abbrechen';
+    $('hint').textContent = 'Geh in Position. Die Aufnahme startet gleich.';
+    $('stCount').textContent = '0'; $('stBest').textContent = '–'; $('stTotal').textContent = '–';
+    lockScreen(); updateStatus();
+  }
+
+  function beginSession() {
+    phase = 'session';
+    chunks = []; attempts = []; lastResult = null; det.reset();
+    const mime = pickMime();
+    const opts = { videoBitsPerSecond: 2500000 };
+    if (mime) opts.mimeType = mime;
+    try { rec = new MediaRecorder(stream, opts); }
+    catch (e) { rec = new MediaRecorder(stream); }
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstart = () => { recStart = performance.now(); };
+    rec.onstop = finishSession;
+    recStart = performance.now();
+    rec.start(1000);
+    beep(1320, 0.4);
+    $('btnStop').textContent = 'Session beenden';
+    $('hint').textContent = useAuto() ? 'Automatische Erkennung läuft.' : 'Manuell: Tippe auf die Zeit, um zu starten und zu stoppen.';
+    updateStatus();
+  }
+
+  function cancelCountdown() {
+    phase = 'idle'; unlockScreen();
+    $('setup').hidden = false; $('running').hidden = true;
+    updateStatus();
+  }
+
+  function stopSession() {
+    if (phase !== 'session') return;
+    const now = performance.now();
+    if (det.holding) onEvent(det.forceEnd(now));
+    phase = 'stopping';
+    try { rec.stop(); } catch (e) { finishSession(); }
+    unlockScreen();
+  }
+
+  function onEvent(ev) {
+    if (!ev) return;
+    if (ev.type === 'start') { milestone = 0; beep(660, 0.1); updateStatus(); return; }
+    const dur = (ev.end - ev.start) / 1000;
+    if (dur >= S.minHold) {
+      attempts.push({ vStart: (ev.start - recStart) / 1000, vEnd: (ev.end - recStart) / 1000, dur });
+      lastResult = { text: fmtSec(dur), label: 'Letzter Versuch', until: performance.now() + 6000, ok: true };
+      if (dur > best) {
+        best = dur;
+        try { localStorage.setItem('hs-best', String(best)); } catch (e) {}
+      }
+      beep(990, 0.25);
+      renderStats();
+    } else {
+      lastResult = { text: fmtSec(dur), label: 'Zu kurz, nicht gezählt', until: performance.now() + 3500, ok: false };
+    }
+    updateStatus();
+  }
+
+  function renderStats() {
+    $('stCount').textContent = String(attempts.length);
+    const top = attempts.reduce((m, a) => Math.max(m, a.dur), 0);
+    const total = attempts.reduce((s, a) => s + a.dur, 0);
+    $('stBest').textContent = top ? fmtSec(top) : '–';
+    $('stTotal').textContent = total ? fmtSec(total) : '–';
+  }
+
+  // ---- Render- und Erkennungsschleife ----
+  function loop(now) {
+    requestAnimationFrame(loop);
+    if (phase === 'countdown') {
+      const rem = Math.ceil((countdownEnd - now) / 1000);
+      if (rem <= 0) { beginSession(); }
+      else {
+        if (rem !== lastCount) { lastCount = rem; if (rem <= 3) beep(880, 0.12); }
+        $('timerLabel').textContent = 'Los geht’s in';
+        setTimer(String(rem), '');
+        setBar(0, false);
+      }
+    } else if (phase === 'session') {
+      if (useAuto() && cam.readyState >= 2 && now - lastDet > 80) {
+        lastDet = now;
+        try {
+          const res = landmarker.detectForVideo(cam, now);
+          const lm = res && res.landmarks && res.landmarks[0];
+          onEvent(det.feed(lm ? isInverted(lm) : false, now));
+        } catch (e) {}
+      }
+      renderSession(now);
+    }
+  }
+
+  function setTimer(text, cls) {
+    const t = $('timer');
+    if (t.textContent !== text) t.textContent = text;
+    t.className = cls;
+  }
+  function setBar(frac, full) {
+    $('bar').querySelector('i').style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+    $('bar').classList.toggle('full', !!full);
+  }
+
+  function renderSession(now) {
+    $('statusText').textContent = (det.holding ? 'Handstand! ' : 'REC ') + clock(now - recStart);
+    if (det.holding) {
+      const ms = now - det.holdStart, sec = ms / 1000;
+      const counts = sec >= S.minHold;
+      $('timerLabel').textContent = counts ? 'Zählt' : 'Halten';
+      setTimer(fmt(ms), counts ? 'counts' : 'live');
+      setBar(sec / S.minHold, counts);
+      const m = Math.floor(sec / 10);
+      if (m > milestone) { milestone = m; beep(1200, 0.2); }
+    } else if (lastResult && now < lastResult.until) {
+      $('timerLabel').textContent = lastResult.label;
+      setTimer(lastResult.text, lastResult.ok ? 'counts' : 'short');
+      setBar(lastResult.ok ? 1 : 0, lastResult.ok);
+    } else {
+      $('timerLabel').textContent = useAuto() ? 'Warte auf Handstand' : 'Tippe zum Starten';
+      setTimer('0,0', 'short');
+      setBar(0, false);
+    }
+  }
+
+  // Manuell: Tipp auf die Zeit startet/stoppt
+  $('timerWrap').addEventListener('click', () => {
+    if (phase !== 'session' || useAuto()) return;
+    const now = performance.now();
+    onEvent(det.holding ? det.forceEnd(now) : det.forceStart(now));
+  });
+
+  // ---- Ende & Rueckblick ----
+  function finishSession() {
+    if (phase === 'review') return;
+    const type = ((rec && rec.mimeType) || pickMime() || 'video/webm').split(';')[0];
+    sessionBlob = new Blob(chunks, { type });
+    if (sessionUrl) URL.revokeObjectURL(sessionUrl);
+    sessionUrl = URL.createObjectURL(sessionBlob);
+    phase = 'review';
+    $('timerWrap').hidden = true; $('sheet').hidden = true; $('hud').hidden = true;
+    $('review').hidden = false;
+    player.src = sessionUrl; player.load();
+    renderList();
+  }
+
+  // WebM aus MediaRecorder meldet oft keine Dauer; das hier erzwingt sie, damit Springen klappt.
+  player.addEventListener('loadedmetadata', () => {
+    if (player.duration === Infinity) {
+      player.currentTime = 1e101;
+      const h = () => { player.removeEventListener('timeupdate', h); player.currentTime = 0; };
+      player.addEventListener('timeupdate', h);
+    }
+  });
+  player.addEventListener('timeupdate', () => {
+    if (stopAt !== null && player.currentTime >= stopAt) { player.pause(); stopAt = null; }
+  });
+
+  function renderList() {
+    const list = $('list'); list.textContent = '';
+    if (!attempts.length) {
+      const p = document.createElement('p'); p.className = 'empty';
+      p.textContent = 'Kein Handstand erkannt. Das ganze Video kannst du trotzdem speichern. Tipp: Handy hochkant, ganzer Körper im Bild, gutes Licht.';
+      list.appendChild(p); return;
+    }
+    const top = Math.max.apply(null, attempts.map((a) => a.dur));
+    attempts.forEach((a, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'att' + (a.dur === top ? ' best' : '');
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = String(i + 1);
+      const d = document.createElement('span'); d.className = 'd'; d.textContent = fmtSec(a.dur) + ' s';
+      const t = document.createElement('span'); t.className = 't'; t.textContent = 'bei ' + clock(a.vStart * 1000);
+      b.append(n, d, t);
+      b.addEventListener('click', () => {
+        player.currentTime = Math.max(0, a.vStart - 2);
+        stopAt = a.vEnd + 1.5;
+        player.play().catch(() => {});
+        player.scrollIntoView({ block: 'nearest' });
+      });
+      list.appendChild(b);
+    });
+  }
+
+  async function saveVideo() {
+    if (!sessionBlob) return;
+    const ext = sessionBlob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+    const d = new Date(), p = (x) => String(x).padStart(2, '0');
+    const name = 'handstand-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + '.' + ext;
+    const file = new File([sessionBlob], name, { type: sessionBlob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = sessionUrl; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  async function newSession() {
+    player.pause(); player.removeAttribute('src'); player.load();
+    if (sessionUrl) { URL.revokeObjectURL(sessionUrl); sessionUrl = null; }
+    sessionBlob = null; attempts = []; chunks = [];
+    $('review').hidden = true;
+    $('hud').hidden = false; $('timerWrap').hidden = false; $('sheet').hidden = false;
+    $('setup').hidden = false; $('running').hidden = true;
+    $('timerLabel').textContent = ''; setTimer('0,0', 'short'); setBar(0, false);
+    phase = 'idle'; updateStatus();
+    if (!stream || !stream.active) { try { await startCamera(); } catch (e) { showCamError(e); } }
+  }
+
+  // ---- Buttons ----
+  $('btnCam').addEventListener('click', async () => {
+    $('camErr').hidden = true;
+    try {
+      await startCamera();
+      $('intro').hidden = true;
+      $('hud').hidden = false; $('timerWrap').hidden = false; $('sheet').hidden = false;
+      phase = 'idle';
+      $('timerLabel').textContent = ''; setTimer('0,0', 'short'); setBar(0, false);
+      updateStatus();
+      loadPose();
+    } catch (e) { showCamError(e); }
+  });
+  $('btnStart').addEventListener('click', startCountdown);
+  $('btnStop').addEventListener('click', () => { if (phase === 'countdown') cancelCountdown(); else stopSession(); });
+  $('btnSave').addEventListener('click', saveVideo);
+  $('btnNew').addEventListener('click', newSession);
+
+  updateStatus();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
