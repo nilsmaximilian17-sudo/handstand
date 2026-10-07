@@ -1,7 +1,7 @@
 // Service Worker fuer Handstand-Log: macht die App offline nutzbar.
 // Eigene Dateien: erst Netz (damit Updates sofort ankommen), sonst Zwischenspeicher.
 // Erkennungs-Bibliothek, Modell und Schrift: einmal laden, danach aus dem Zwischenspeicher.
-const CORE = 'hs-core-v3';
+const CORE = 'hs-core-v4';
 const LIB = 'hs-lib-v1';
 const CORE_FILES = ['handstand-log.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 const POSE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
@@ -50,7 +50,8 @@ async function networkFirst(req) {
 async function cacheFirst(req) {
   const cache = await caches.open(LIB);
   const hit = await cache.match(req);
-  if (hit) return hit;
+  // Eine undurchsichtige (opaque) Antwort darf nicht fuer eine CORS-Anfrage benutzt werden.
+  if (hit && !(hit.type === 'opaque' && req.mode === 'cors')) return hit;
   const res = await fetch(req);
   if (res && (res.status === 200 || res.type === 'opaque')) cache.put(req, res.clone());
   return res;
