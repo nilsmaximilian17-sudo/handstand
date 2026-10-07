@@ -314,25 +314,95 @@ class HoldDetector {
 // MediaPipe-Pose-Indizes: 11/12 Schultern, 15/16 Handgelenke, 23/24 Hueften, 25/26 Knie, 27/28 Knoechel. y waechst nach unten.
 // Zaehlt erst, wenn die Beine in der Luft sind: Fuesse (sonst Knie) muessen deutlich ueber den Hueften liegen.
 // Alle Schwellen sind relativ zur Rumpflaenge, damit es egal ist, wie weit das Handy weg steht.
-const lmVis = (lm, i, th) => !!lm[i] && (lm[i].visibility === undefined || lm[i].visibility > th);
-function bodySeen(lm) {
-  return !!lm && lmVis(lm, 11, 0.4) && lmVis(lm, 12, 0.4) && lmVis(lm, 23, 0.4) && lmVis(lm, 24, 0.4);
+const lmVis = (lm, i, th) => !!lm && !!lm[i] && (lm[i].visibility === undefined || lm[i].visibility > th);
+// Mittelpunkt eines Gelenkpaars (links/rechts). Ist eine Seite verdeckt (z. B. seitlich), reicht die andere, wenn sie sicher erkannt ist.
+function pairPt(lm, a, b, both, single) {
+  const va = lmVis(lm, a, both), vb = lmVis(lm, b, both);
+  if (va && vb) return { x: (lm[a].x + lm[b].x) / 2, y: (lm[a].y + lm[b].y) / 2 };
+  const sa = lmVis(lm, a, single), sb = lmVis(lm, b, single);
+  if (sa && (!sb || (lm[a].visibility || 0) >= (lm[b].visibility || 0))) return { x: lm[a].x, y: lm[a].y };
+  if (sb) return { x: lm[b].x, y: lm[b].y };
+  return null;
 }
+function bodySeen(lm) {
+  return !!lm && !!pairPt(lm, 11, 12, 0.35, 0.55) && !!pairPt(lm, 23, 24, 0.35, 0.55);
+}
+// Funktioniert von der Seite, von vorne und von hinten: es zaehlt nur, was oben und unten ist.
+// Alle Schwellen sind relativ zur Rumpflaenge, damit es egal ist, wie weit das Handy weg steht.
 function isInverted(lm) {
-  if (!bodySeen(lm)) return false;
-  const shX = (lm[11].x + lm[12].x) / 2, shY = (lm[11].y + lm[12].y) / 2;
-  const hipX = (lm[23].x + lm[24].x) / 2, hipY = (lm[23].y + lm[24].y) / 2;
-  const torso = Math.hypot(shX - hipX, shY - hipY);
+  if (!lm) return false;
+  const sh = pairPt(lm, 11, 12, 0.35, 0.55), hip = pairPt(lm, 23, 24, 0.35, 0.55);
+  if (!sh || !hip) return false;
+  const torso = Math.hypot(sh.x - hip.x, sh.y - hip.y);
   if (torso < 0.03) return false;
-  if (!(shY - hipY > 0.5 * torso)) return false;                 // Hueften klar ueber den Schultern
-  let legY = null;
-  if (lmVis(lm, 27, 0.3) && lmVis(lm, 28, 0.3)) legY = (lm[27].y + lm[28].y) / 2;
-  else if (lmVis(lm, 25, 0.3) && lmVis(lm, 26, 0.3)) legY = (lm[25].y + lm[26].y) / 2;
-  if (legY === null || !(legY < hipY - 0.35 * torso)) return false;   // Beine klar ueber den Hueften
-  if (lmVis(lm, 15, 0.4) && lmVis(lm, 16, 0.4) && (lm[15].y + lm[16].y) / 2 < shY - 0.15 * torso) return false; // Haende unten
+  if (!(sh.y - hip.y > 0.5 * torso)) return false;                 // Hueften klar ueber den Schultern
+  const leg = pairPt(lm, 27, 28, 0.3, 0.5) || pairPt(lm, 25, 26, 0.3, 0.5);
+  if (!leg || !(leg.y < hip.y - 0.35 * torso)) return false;      // Beine klar ueber den Hueften
+  const wr = pairPt(lm, 15, 16, 0.4, 0.6);
+  if (wr && wr.y < sh.y - 0.15 * torso) return false;              // Haende unten
   return true;
 }
 // </detector>
+
+// <mp4mux>
+// Kleiner MP4-Muxer fuer H.264 (ohne B-Frames): baut aus kodierten Bildern eine normale, springbare MP4-Datei.
+// samples: [{ data: Uint8Array (Laengen-praefixierte NALs), ts: Mikrosekunden, key: bool }]
+function muxMp4(opts) {
+  const W = opts.width, H = opts.height, avcC = opts.avcC, S = opts.samples, TS = 90000;
+  if (!S.length) return null;
+  const enc = new TextEncoder();
+  const u32 = (v) => [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255];
+  const u16 = (v) => [(v >>> 8) & 255, v & 255];
+  const str = (s) => Array.from(enc.encode(s));
+  const cat = (arrs) => { let n = 0; arrs.forEach((a) => { n += a.length; }); const o = new Uint8Array(n); let p = 0; arrs.forEach((a) => { o.set(a, p); p += a.length; }); return o; };
+  const box = (type, ...parts) => { const body = cat(parts.map((x) => (x instanceof Uint8Array ? x : Uint8Array.from(x)))); return cat([Uint8Array.from(u32(body.length + 8)), Uint8Array.from(str(type)), body]); };
+  const full = (type, ver, flags, ...parts) => box(type, [ver, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...parts);
+  const matrix = [].concat(u32(0x10000), u32(0), u32(0), u32(0), u32(0x10000), u32(0), u32(0), u32(0), u32(0x40000000));
+
+  const t0 = S[0].ts;
+  const pts = S.map((s) => Math.max(0, Math.round((s.ts - t0) * TS / 1e6)));
+  const durs = pts.map((p, i) => (i + 1 < pts.length ? Math.max(1, pts[i + 1] - p) : Math.round(TS / 30)));
+  const total = pts[pts.length - 1] + durs[durs.length - 1];
+  const totalMs = Math.round(total * 1000 / TS);
+
+  // stts: Lauflaengen der Bilddauern
+  const stts = []; durs.forEach((d) => { const l = stts[stts.length - 1]; if (l && l[1] === d) l[0]++; else stts.push([1, d]); });
+  const keys = []; S.forEach((s, i) => { if (s.key) keys.push(i + 1); });
+
+  const ftyp = box('ftyp', str('isom'), u32(512), str('isom'), str('iso2'), str('avc1'), str('mp41'));
+  let dataLen = 0; S.forEach((s) => { dataLen += s.data.length; });
+  const mdatHead = Uint8Array.from(u32(dataLen + 8).concat(str('mdat')));
+  const chunkOffset = ftyp.length + 8;
+
+  const avc1 = box('avc1',
+    [0, 0, 0, 0, 0, 0], u16(1), new Array(16).fill(0), u16(W), u16(H),
+    u32(0x480000), u32(0x480000), u32(0), u16(1), new Array(32).fill(0), u16(0x18), u16(0xffff),
+    box('avcC', avcC));
+  const stbl = box('stbl',
+    full('stsd', 0, 0, u32(1), avc1),
+    full('stts', 0, 0, u32(stts.length), [].concat(...stts.map((e) => u32(e[0]).concat(u32(e[1]))))),
+    full('stss', 0, 0, u32(keys.length), [].concat(...keys.map(u32))),
+    full('stsc', 0, 0, u32(1), u32(1), u32(S.length), u32(1)),
+    full('stsz', 0, 0, u32(0), u32(S.length), [].concat(...S.map((s) => u32(s.data.length)))),
+    full('stco', 0, 0, u32(1), u32(chunkOffset)));
+  const minf = box('minf',
+    full('vmhd', 0, 1, u16(0), u16(0), u16(0), u16(0)),
+    box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1))),
+    stbl);
+  const mdia = box('mdia',
+    full('mdhd', 0, 0, u32(0), u32(0), u32(TS), u32(total), u16(0x55c4), u16(0)),
+    full('hdlr', 0, 0, u32(0), str('vide'), u32(0), u32(0), u32(0), str('VideoHandler'), [0]),
+    minf);
+  const trak = box('trak',
+    full('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(totalMs), u32(0), u32(0), u16(0), u16(0), u16(0), u16(0), matrix, u32(W * 65536), u32(H * 65536)),
+    mdia);
+  const moov = box('moov',
+    full('mvhd', 0, 0, u32(0), u32(0), u32(1000), u32(totalMs), u32(0x10000), u16(0x100), u16(0), u32(0), u32(0), matrix, new Array(24).fill(0), u32(2)),
+    trak);
+  return new Blob([ftyp, mdatHead].concat(S.map((s) => s.data)).concat([moov]), { type: 'video/mp4' });
+}
+// </mp4mux>
+
 
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -394,10 +464,10 @@ function isInverted(lm) {
   let stream = null, wakeLock = null, recStream = null, canvas = null, g2d = null, cstream = null, baked = false;
   let parts = [], curPart = null, sessionId = null, sessionStart = 0, sessionStartedAt = 0, attempts = [];
   let review = null, loadedPart = -1, partUrl = null, stopAt = null;
-  let landmarker = null, poseState = 'idle';   // idle | loading | ready | failed
+  let landmarker = null, landmarkerRot = null, poseState = 'idle';   // idle | loading | ready | failed
   let lastDet = 0, lastDraw = 0, lastResult = null, flags = { counted: false, goal: false };
   let actx = null, clipBusy = false, stopArmed = false, newArmed = false, toastTimer = null;
-  const det = new HoldDetector(500, 700);
+  const det = new HoldDetector(500, 1000);
   const useAuto = () => S.mode === 'auto' && poseState === 'ready';
 
   // ---- Hinweise (Toast) ----
@@ -497,8 +567,11 @@ function isInverted(lm) {
       const make = (delegate) => vision.PoseLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: MODEL_URL, delegate }, runningMode: 'VIDEO', numPoses: 1
       });
-      try { landmarker = await make('GPU'); } catch (e) { landmarker = await make('CPU'); }
+      let delegate = 'GPU';
+      try { landmarker = await make('GPU'); } catch (e) { delegate = 'CPU'; landmarker = await make('CPU'); }
       poseState = 'ready';
+      // Zweite Erkennung fuer das auf den Kopf gedrehte Bild: hilft besonders von vorne und hinten.
+      make(delegate).then((l) => { landmarkerRot = l; }).catch(() => {});
       if (navigator.serviceWorker) navigator.serviceWorker.ready.then(() => { $('offlineNote').textContent = 'Offline-Nutzung bereit'; });
     } catch (e) {
       poseState = 'failed';
@@ -540,7 +613,7 @@ function isInverted(lm) {
       if (phase === 'session') lockScreen();
       // iOS beendet die Kamera manchmal im Hintergrund: dann neu starten
       if (!stream || !stream.active || stream.getVideoTracks().every((t) => t.readyState === 'ended')) startCamera().catch(() => {});
-      if (phase === 'session' && curPart && curPart.rec.state === 'inactive' && !curPart.stopped) { try { startPart(); } catch (e) {} }
+      if (phase === 'session' && curPart && curPart.kind === 'mr' && curPart.rec.state === 'inactive' && !curPart.stopped && !curPart.stopping) { try { startPart(); } catch (e) {} }
     }
   });
 
@@ -574,14 +647,76 @@ function isInverted(lm) {
     return types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
   }
 
-  function beginSession() {
+  // ---- Aufnahme-Motor ----
+  // Bevorzugt: Safari kodiert selbst (H.264), die App setzt alle 2 s ein Schluesselbild und baut eine normale MP4.
+  // So kann man im Video ueberall hin springen. Rueckfall: MediaRecorder wie bisher.
+  const H264 = ['avc1.42E01F', 'avc1.4D401F', 'avc1.640028', 'avc1.42001F'];
+  let encCodec = null, encOff = false;
+  async function findEncoder(w, h) {
+    if (encOff || !window.VideoEncoder || !window.VideoFrame) return null;
+    for (const codec of H264) {
+      try {
+        const s = await VideoEncoder.isConfigSupported({ codec, width: w, height: h, bitrate: 1200000, framerate: 30, avc: { format: 'avc' } });
+        if (s && s.supported) return codec;
+      } catch (e) {}
+    }
+    return null;
+  }
+  const toU8 = (d) => (d instanceof ArrayBuffer ? new Uint8Array(d.slice(0)) : new Uint8Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength)));
+  function makeEncoder(src, codec, bitrate) {
+    const w = src.width, h = src.height;
+    const st = { samples: [], avcC: null, failed: false, frames: 0, outputs: 0, t0: null, lastKey: -1e9, lastTs: -1, closed: false };
+    const enc = new VideoEncoder({
+      output: (chunk, meta) => {
+        try {
+          if (!st.avcC && meta && meta.decoderConfig && meta.decoderConfig.description) st.avcC = toU8(meta.decoderConfig.description);
+          if (chunk.timestamp <= st.lastTs) { st.failed = true; return; }
+          st.lastTs = chunk.timestamp;
+          const data = new Uint8Array(chunk.byteLength); chunk.copyTo(data);
+          st.samples.push({ data, ts: chunk.timestamp, key: chunk.type === 'key' });
+          st.outputs++;
+        } catch (e) { st.failed = true; }
+      },
+      error: () => { st.failed = true; }
+    });
+    enc.configure({ codec, width: w, height: h, bitrate, framerate: 30, avc: { format: 'avc' }, latencyMode: 'realtime' });
+    return {
+      st,
+      addFrame(now) {
+        if (st.failed || st.closed || enc.state !== 'configured' || enc.encodeQueueSize > 3) return;
+        if (st.t0 === null) st.t0 = now;
+        const key = st.frames === 0 || now - st.lastKey >= 2000;
+        let f = null;
+        try {
+          f = new VideoFrame(src, { timestamp: Math.round((now - st.t0) * 1000) });
+          enc.encode(f, { keyFrame: key });
+          if (key) st.lastKey = now;
+          st.frames++;
+        } catch (e) { st.failed = true; }
+        finally { if (f) f.close(); }
+      },
+      async finish() {
+        st.closed = true;
+        try { if (enc.state === 'configured') await enc.flush(); } catch (e) {}
+        try { enc.close(); } catch (e) {}
+        if (!st.avcC || !st.samples.length || !st.samples[0].key) return null;
+        const blob = muxMp4({ width: w, height: h, avcC: st.avcC, samples: st.samples });
+        st.samples = [];
+        return blob;
+      }
+    };
+  }
+
+  async function beginSession() {
     if (!stream || phase !== 'idle') return;
+    phase = 'starting';
     try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
     try { if ('speechSynthesis' in window) { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('')); } } catch (e) {}
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+    lockScreen();
 
-    // Aufgenommen wird ein Canvas: Kamerabild plus eingeblendete Haltezeit (Fallback: rohes Kamerabild).
-    recStream = stream; baked = false;
+    // Aufgenommen wird ein Canvas: Kamerabild plus eingeblendete Haltezeit (Rueckfall: rohes Kamerabild).
+    recStream = stream; baked = false; encCodec = null;
     try {
       canvas = canvas || document.createElement('canvas');
       if (!canvas.isConnected) {
@@ -590,15 +725,21 @@ function isInverted(lm) {
       }
       const vw = cam.videoWidth || 720, vh = cam.videoHeight || 1280;
       const k = Math.min(1, 960 / Math.max(vw, vh));
-      canvas.width = Math.round(vw * k); canvas.height = Math.round(vh * k);
+      canvas.width = Math.round(vw * k / 2) * 2; canvas.height = Math.round(vh * k / 2) * 2;
       g2d = canvas.getContext('2d');
-      if (canvas.captureStream) { cstream = canvas.captureStream(30); recStream = cstream; baked = true; }
-    } catch (e) { recStream = stream; baked = false; }
+      baked = true;
+      encCodec = await findEncoder(canvas.width, canvas.height);
+      if (!encCodec) {
+        if (canvas.captureStream) { cstream = canvas.captureStream(30); recStream = cstream; }
+        else { recStream = stream; baked = false; }
+      }
+    } catch (e) { recStream = stream; baked = false; encCodec = null; }
 
     attempts = []; parts = []; lastResult = null; det.reset(); flags = { counted: false, goal: false };
     sessionId = 's' + Date.now(); sessionStartedAt = Date.now(); sessionStart = performance.now();
     try { if (baked) drawFrame(performance.now()); startPart(); }
     catch (e) {
+      phase = 'idle'; unlockScreen();
       toast('Dieser Browser kann hier nicht aufnehmen.', null, null, 5000);
       return;
     }
@@ -610,51 +751,80 @@ function isInverted(lm) {
     $('hint').textContent = (useAuto() ? 'Automatische Erkennung läuft. ' : 'Manuell: Tippe auf die Zeit zum Starten und Stoppen. ')
       + (baked ? 'Die Haltezeit wird ins Video eingeblendet.' : 'Dieses Gerät kann die Zeit nicht ins Video einblenden.');
     purgeOld(sessionId).then(() => saveMeta(false));
-    lockScreen(); beep(1320, 0.4); updateStatus();
+    beep(1320, 0.4); updateStatus();
   }
 
   // ---- Aufnahme in Teilen ----
   function startPart() {
     const n = parts.length;
-    if (!baked) recStream = stream;
-    const mime = pickMime();
-    const opts = { videoBitsPerSecond: 1000000 };
-    if (mime) opts.mimeType = mime;
-    let r;
-    try { r = new MediaRecorder(recStream, opts); } catch (e) { r = new MediaRecorder(recStream); }
-    const p = { n, key: sessionId + '-' + n, start: performance.now(), rec: r, chunks: [], stopped: false, stored: false, size: 0, durMs: 0, type: '' };
-    r.ondataavailable = (e) => { if (e.data && e.data.size) p.chunks.push(e.data); };
-    r.onstart = () => { p.start = performance.now(); };
-    r.onstop = () => onPartStop(p);
-    r.onerror = () => { try { if (r.state !== 'inactive') r.stop(); } catch (e) {} };
-    r.start(1000);
+    const p = { n, key: sessionId + '-' + n, start: performance.now(), kind: 'mr', rec: null, enc: null, chunks: [],
+      stopping: false, stopped: false, stored: false, size: 0, durMs: 0, type: '', endAt: 0, t0set: false };
+    if (baked && encCodec && !encOff) {
+      try { p.enc = makeEncoder(canvas, encCodec, 1200000); p.kind = 'enc'; }
+      catch (e) { p.enc = null; encOff = true; }
+    }
+    if (!p.enc) {
+      if (baked && !cstream && canvas.captureStream) { cstream = canvas.captureStream(30); }
+      recStream = baked && cstream ? cstream : stream;
+      const mime = pickMime();
+      const opts = { videoBitsPerSecond: 1000000, videoKeyFrameIntervalDuration: 1000 };
+      if (mime) opts.mimeType = mime;
+      let r;
+      try { r = new MediaRecorder(recStream, opts); } catch (e) { r = new MediaRecorder(recStream); }
+      p.rec = r;
+      r.ondataavailable = (e) => { if (e.data && e.data.size) p.chunks.push(e.data); };
+      r.onstart = () => { p.start = performance.now(); };
+      r.onstop = () => onPartStop(p, null);
+      r.onerror = () => { try { if (r.state !== 'inactive') r.stop(); } catch (e) {} };
+      r.start(1000);
+    }
     parts.push(p); curPart = p;
+    return p;
   }
 
-  async function onPartStop(p) {
-    p.stopped = true; p.durMs = Math.max(0, performance.now() - p.start);
+  function stopPart(p) {
+    if (!p || p.stopping || p.stopped) return;
+    p.stopping = true; p.endAt = performance.now();
+    if (p.kind === 'enc') p.enc.finish().then((b) => onPartStop(p, b), () => onPartStop(p, null));
+    else { try { p.rec.stop(); } catch (e) { onPartStop(p, null); } }
+  }
+
+  async function onPartStop(p, encBlob) {
+    if (p.stopped) return;
+    p.stopped = true; p.durMs = Math.max(0, (p.endAt || performance.now()) - p.start);
     // Unerwartet gestoppt (z. B. kurz unterbrochen): sofort neuen Teil starten, damit die Aufnahme weiterlaeuft.
     if (phase === 'session' && p === curPart) { try { startPart(); } catch (e) {} }
-    const type = ((p.rec && p.rec.mimeType) || pickMime() || 'video/webm').split(';')[0];
-    if (p.chunks.length) {
-      const blob = new Blob(p.chunks, { type });
-      p.size = blob.size; p.type = type; p.chunks = [];
-      await putBlob(p.key, blob);
-    }
+    let blob = null;
+    if (p.kind === 'enc') blob = encBlob;
+    else if (p.chunks.length) blob = new Blob(p.chunks, { type: ((p.rec && p.rec.mimeType) || pickMime() || 'video/webm').split(';')[0] });
+    p.chunks = [];
+    if (blob) { p.size = blob.size; p.type = blob.type; await putBlob(p.key, blob); }
     p.stored = true;
     saveMeta(false);
     if (phase === 'stopping' && parts.every((x) => x.stored)) finishSession();
+  }
+
+  // Jedes Bild der Aufnahme: an den Encoder geben, Startzeit merken, Fehler abfangen.
+  function feedEncoder(now) {
+    const p = curPart;
+    if (!p || p.kind !== 'enc' || p.stopping) return;
+    p.enc.addFrame(now);
+    if (!p.t0set && p.enc.st.t0 !== null) { p.start = p.enc.st.t0; p.t0set = true; }
+    const st = p.enc.st;
+    if (st.failed || (st.frames > 45 && st.outputs === 0)) {
+      encOff = true;                       // dieses Geraet: ab jetzt MediaRecorder
+      try { startPart(); } catch (e) {}
+      stopPart(p);
+    }
   }
 
   // Nach 5 Minuten, wenn gerade kein Handstand laeuft: aktuellen Teil abschliessen und ablegen, neuen starten.
   function maybeRotate(now) {
     if (!curPart || det.holding || det.invSince !== null) return;
     if (now - curPart.start < PART_MS) return;
-    try {
-      const old = curPart;
-      try { old.rec.stop(); } catch (e) {}
-      startPart();
-    } catch (e) { curPart.start = now; }
+    const old = curPart;
+    try { startPart(); } catch (e) { old.start = now; return; }
+    stopPart(old);
   }
 
   const partSummary = () => parts.filter((p) => p.stored && p.size > 0).map((p) => ({ n: p.n, key: p.key, size: p.size, durMs: p.durMs, type: p.type }));
@@ -669,7 +839,7 @@ function isInverted(lm) {
     if (det.holding) onEvent(det.forceEnd(performance.now()));
     phase = 'stopping'; unlockScreen(); updateStatus();
     $('hint').textContent = 'Aufnahme wird gespeichert …'; $('btnStop').disabled = true;
-    parts.forEach((p) => { if (!p.stopped) { try { p.rec.stop(); } catch (e) { p.stopped = true; p.stored = true; } } });
+    parts.forEach((p) => stopPart(p));
     if (parts.every((x) => x.stored)) finishSession();
   }
 
@@ -721,16 +891,41 @@ function isInverted(lm) {
   // ---- Schleife: Erkennung, Aufnahme-Canvas, Anzeige ----
   // Erkennung laeuft schon vor dem Start, damit du siehst, ob du richtig im Bild bist.
   let lastSeen = -1e9, lastLm = null, lastDetTs = 0;
+  let detFlip = false, lastNorm = null, lastRot = null, rotCv = null, rotCx = null;
+  function detectOn(lmk, src, now) {
+    const ts = Math.max(now, lastDetTs + 1); lastDetTs = ts;   // Zeitstempel muessen streng steigen
+    const res = lmk.detectForVideo(src, ts);
+    return (res && res.landmarks && res.landmarks[0]) || null;
+  }
+  // Abwechselnd: normales Bild und um 180 Grad gedrehtes Bild. Die Erkennung arbeitet mit aufrechten
+  // Menschen am besten, im gedrehten Bild steht man im Handstand "aufrecht".
   function runDetection(now, every) {
     if (!useAuto() || cam.readyState < 2 || now - lastDet < every) return null;
     lastDet = now;
     try {
-      const ts = Math.max(now, lastDetTs + 1); lastDetTs = ts;   // Zeitstempel muessen streng steigen
-      const res = landmarker.detectForVideo(cam, ts);
-      const lm = res && res.landmarks && res.landmarks[0];
-      lastLm = lm || null;
-      if (bodySeen(lm)) lastSeen = now;
-      return { inv: lm ? isInverted(lm) : false };
+      if (landmarkerRot && detFlip) {
+        const vw = cam.videoWidth, vh = cam.videoHeight, k = Math.min(1, 640 / Math.max(vw, vh));
+        const w = Math.round(vw * k), h = Math.round(vh * k);
+        if (!rotCv) { rotCv = document.createElement('canvas'); rotCx = rotCv.getContext('2d'); }
+        if (rotCv.width !== w || rotCv.height !== h) { rotCv.width = w; rotCv.height = h; }
+        rotCx.setTransform(-1, 0, 0, -1, w, h);
+        rotCx.drawImage(cam, 0, 0, w, h);
+        rotCx.setTransform(1, 0, 0, 1, 0, 0);
+        const raw = detectOn(landmarkerRot, rotCv, now);
+        const lm = raw ? raw.map((q) => ({ x: 1 - q.x, y: 1 - q.y, z: q.z, visibility: q.visibility })) : null;
+        lastRot = { lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
+      } else {
+        const lm = detectOn(landmarker, cam, now);
+        lastNorm = { lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
+      }
+      detFlip = !detFlip;
+      const fresh = (r) => (r && now - r.t < 450 ? r : null);
+      const n = fresh(lastNorm), r = fresh(lastRot);
+      const inv = !!((n && n.inv) || (r && r.inv));
+      const pick = r && (r.inv || (r.seen && !(n && n.seen))) ? r : n;
+      lastLm = pick ? pick.lm : null;
+      if ((n && n.seen) || (r && r.seen)) lastSeen = now;
+      return { inv };
     } catch (e) { return null; }
   }
 
@@ -779,7 +974,7 @@ function isInverted(lm) {
       return;
     }
     if (phase !== 'session') { clearSkeleton(); return; }
-    if (baked && now - lastDraw >= 30) { lastDraw = now; drawFrame(now); }
+    if (baked && now - lastDraw >= 30) { lastDraw = now; if (drawFrame(now)) feedEncoder(now); }
     const r = runDetection(now, 80);
     if (r) { onEvent(det.feed(r.inv, now)); drawSkeleton(lastLm, r.inv); }
     if (!useAuto()) clearSkeleton();
@@ -837,7 +1032,7 @@ function isInverted(lm) {
     g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
   }
   function drawFrame(now) {
-    if (!g2d || cam.readyState < 2) return;
+    if (!g2d || cam.readyState < 2) return false;
     const w = canvas.width, h = canvas.height;
     g2d.drawImage(cam, 0, 0, w, h);
     let label = null, text = null, color = null;
@@ -855,7 +1050,7 @@ function isInverted(lm) {
       text = lastResult.text + ' s';
       color = lastResult.goal ? '#6ec6ff' : '#7bd88f';
     }
-    if (!text) return;
+    if (!text) return true;
     const nf = Math.round(w * 0.085), lf = Math.round(w * 0.032), pad = Math.round(w * 0.022), m = Math.round(w * 0.035);
     const face = '"Barlow Condensed","Arial Narrow",Arial,sans-serif';
     g2d.textAlign = 'center'; g2d.textBaseline = 'alphabetic';
@@ -874,6 +1069,7 @@ function isInverted(lm) {
     g2d.fillStyle = color;
     g2d.font = '700 ' + nf + 'px ' + face;
     g2d.fillText(text, cx, by + pad * 1.2 + lf + nf * 0.85);
+    return true;
   }
 
   // ---- Hilfen fuer Videoelemente ----
@@ -905,6 +1101,9 @@ function isInverted(lm) {
   }
 
   // ---- Rueckblick ----
+  // Versuch-Abspielen haelt am Ende des Versuchs an. Springst du selbst im Video, gilt dieser Stopp nicht mehr.
+  let progSeek = false;
+  player.addEventListener('seeking', () => { if (progSeek) progSeek = false; else stopAt = null; });
   player.addEventListener('timeupdate', () => {
     if (stopAt !== null && player.currentTime >= stopAt) { player.pause(); stopAt = null; }
   });
@@ -972,6 +1171,7 @@ function isInverted(lm) {
   async function playAttempt(a) {
     try {
       await loadPart(a.part);
+      progSeek = true;
       player.currentTime = Math.max(0, a.vStart - 2);
       stopAt = a.vEnd + 1.5;
       await player.play();
@@ -1031,30 +1231,39 @@ function isInverted(lm) {
       const t0 = Math.max(0, a.vStart - 2), t1 = a.vEnd + 2;
       await seekTo(v, t0);
       const cv = document.createElement('canvas');
-      cv.width = v.videoWidth; cv.height = v.videoHeight;
+      cv.width = Math.round(v.videoWidth / 2) * 2; cv.height = Math.round(v.videoHeight / 2) * 2;
       const cx = cv.getContext('2d');
       cx.drawImage(v, 0, 0, cv.width, cv.height);
-      if (!cv.captureStream) throw new Error('nocapture');
-      cs = cv.captureStream(30);
-      const mime = pickMime();
-      const r = new MediaRecorder(cs, mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : { videoBitsPerSecond: 1500000 });
-      const out = [];
-      r.ondataavailable = (e) => { if (e.data && e.data.size) out.push(e.data); };
-      const done = new Promise((res) => { r.onstop = res; });
-      r.start(500);
+      // Bevorzugt eigener Encoder (springbare MP4), sonst MediaRecorder
+      const codec = await findEncoder(cv.width, cv.height);
+      let e2 = null, r = null, out = [], done = null, mime = '';
+      if (codec) e2 = makeEncoder(cv, codec, 2000000);
+      else {
+        if (!cv.captureStream) throw new Error('nocapture');
+        cs = cv.captureStream(30);
+        mime = pickMime();
+        r = new MediaRecorder(cs, mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : { videoBitsPerSecond: 1500000 });
+        r.ondataavailable = (ev) => { if (ev.data && ev.data.size) out.push(ev.data); };
+        done = new Promise((res) => { r.onstop = res; });
+        r.start(500);
+      }
       await v.play();
+      let lastF = 0;
       await new Promise((res) => {
-        const step = () => {
+        const step = (now) => {
           cx.drawImage(v, 0, 0, cv.width, cv.height);
+          if (e2 && now - lastF >= 30) { lastF = now; e2.addFrame(now); }
           const left = Math.max(0, Math.ceil(t1 - v.currentTime));
           toast('Clip wird erstellt … noch ca. ' + left + ' s');
           if (v.ended || v.currentTime >= t1) res(); else requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
       });
-      v.pause(); r.stop(); await done;
-      const type = (r.mimeType || mime || 'video/webm').split(';')[0];
-      const clipBlob = new Blob(out, { type });
+      v.pause();
+      let clipBlob;
+      if (e2) { clipBlob = await e2.finish(); if (!clipBlob) throw new Error('encode'); }
+      else { r.stop(); await done; clipBlob = new Blob(out, { type: (r.mimeType || mime || 'video/webm').split(';')[0] }); }
+      const type = clipBlob.type;
       const file = new File([clipBlob], 'handstand-' + stampOf() + '-versuch' + num + '-' + Math.floor(a.dur) + 's.' + extOf(clipBlob), { type });
       toast('Clip fertig: Versuch ' + num + ' (' + fmtSec(a.dur) + ' s)', 'Speichern', () => { shareOrDownload([file]); });
     } catch (e) {

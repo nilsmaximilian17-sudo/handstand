@@ -1,7 +1,7 @@
 // Service Worker fuer Handstand-Log: macht die App offline nutzbar.
 // Eigene Dateien: erst Netz (damit Updates sofort ankommen), sonst Zwischenspeicher.
 // Erkennungs-Bibliothek, Modell und Schrift: einmal laden, danach aus dem Zwischenspeicher.
-const CORE = 'hs-core-v4';
+const CORE = 'hs-core-v5';
 const LIB = 'hs-lib-v1';
 const CORE_FILES = ['handstand-log.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 const POSE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
