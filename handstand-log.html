@@ -46,7 +46,7 @@
   #cam.mirror, #overlay.mirror { transform: scaleX(-1); }
   .shade { position: absolute; inset: 0; pointer-events: none;
     background: linear-gradient(to bottom, rgba(0,0,0,.55) 0, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 45%, rgba(0,0,0,.7) 100%); }
-  #hud, #timerWrap, #sheet, #intro, #review, #history { position: relative; z-index: 1; }
+  #hud, #timerWrap, #sheet, #intro, #review, #history, #warmup, #challenge { position: relative; z-index: 1; }
 
   /* Intro */
   #intro { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 14px;
@@ -133,10 +133,10 @@
   #hint { margin: 0; font-size: .82rem; color: var(--mute); text-align: center; }
 
   /* Rueckblick & Verlauf */
-  #review, #history { flex: 1 1 auto; min-height: 0; background: var(--bg); display: flex; flex-direction: column; gap: 12px;
+  #review, #history, #warmup, #challenge { flex: 1 1 auto; min-height: 0; background: var(--bg); display: flex; flex-direction: column; gap: 12px;
     padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-  #review > *, #history > * { flex-shrink: 0; }
+  #review > *, #history > *, #warmup > *, #challenge > * { flex-shrink: 0; }
   h2 { font-family: var(--disp); text-transform: uppercase; font-size: 2rem; margin: 0; line-height: 1; }
   #player { width: 100%; max-height: 42vh; background: #000; border-radius: 12px; flex: 0 0 auto; }
   .empty { color: var(--mute); line-height: 1.5; margin: 0; font-size: .92rem; }
@@ -163,6 +163,71 @@
   .lbl { fill: var(--mute); font-size: 9px; font-family: var(--body); }
   .bar { fill: var(--ok); }
   .bar.rec { fill: var(--hold); }
+  .att .t .inf { display: block; color: var(--fg); font-weight: 600; }
+  .att .t > span { display: block; }
+  #histCal { display: flex; flex-direction: column; gap: 8px; }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .cal-head b { font-size: 1rem; }
+  .cal-nav { background: transparent; border: 1px solid var(--line); border-radius: 10px; min-width: 44px; min-height: 40px; font-size: 1.3rem; line-height: 1; }
+  .cal-nav:disabled { opacity: .3; }
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+  .cal .wd { text-align: center; font-size: .68rem; letter-spacing: .08em; color: var(--mute); text-transform: uppercase; }
+  .cal .d { aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-radius: 8px; background: rgba(255,255,255,.05);
+    color: var(--mute); font-size: .82rem; font-variant-numeric: tabular-nums; }
+  .cal .d[data-l="1"] { background: rgba(123,216,143,.25); color: var(--fg); }
+  .cal .d[data-l="2"] { background: rgba(123,216,143,.45); color: var(--fg); }
+  .cal .d[data-l="3"] { background: rgba(123,216,143,.7); color: #101315; font-weight: 700; }
+  .cal .d[data-l="4"] { background: rgb(123,216,143); color: #101315; font-weight: 700; }
+  .cal .d.today { box-shadow: inset 0 0 0 2px var(--fg); }
+  .cal .d.sel { outline: 2px solid var(--goal); outline-offset: 1px; }
+  .rowbtn { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .rowbtn3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .rowbtn3 .btn { padding: 0 8px; font-size: .92rem; }
+  .lab2 { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+  input[type="text"], textarea { font: inherit; font-size: 16px; width: 100%; color: var(--fg); background: rgba(255,255,255,.06);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; -webkit-user-select: text; user-select: text; resize: vertical; }
+  input[type="text"]:focus, textarea:focus { outline: 2px solid var(--goal); outline-offset: 1px; }
+
+  /* Aufwaermen */
+  .wu-list { display: flex; flex-direction: column; gap: 8px; }
+  .wu-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+  .wu-item.off { opacity: .45; }
+  .wu-item .tg { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: transparent; font-weight: 700; padding: 0; }
+  .wu-item .tg[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: #101315; }
+  .wu-item .nm { min-width: 0; font-weight: 600; font-size: .95rem; }
+  .wu-item .step { max-width: 150px; }
+  .wu-item .step button { flex: 0 0 38px; font-size: 1.1rem; }
+  .wu-item .step output { font-size: .9rem; padding: 0 4px; white-space: nowrap; }
+  #wuRun, #wuDone { display: flex; flex-direction: column; gap: 10px; text-align: center; }
+  .wu-step { font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+  .wu-name { font-family: var(--disp); font-weight: 700; font-size: 2.1rem; line-height: 1; text-transform: uppercase; text-wrap: balance; }
+  .wu-desc { margin: 0 auto; color: var(--mute); line-height: 1.45; max-width: 34ch; min-height: 2.9em; }
+  .wu-time { font-family: var(--disp); font-weight: 700; font-size: clamp(88px, 30vw, 160px); line-height: .9; font-variant-numeric: tabular-nums; }
+  .wu-time.prep { color: var(--hold); }
+  .wubar { height: 8px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .wubar i { display: block; height: 100%; width: 0; background: var(--ok); }
+  .wu-next { color: var(--mute); font-size: .9rem; min-height: 1.3em; }
+
+  /* Challenge */
+  .ch-box { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .ch-mine { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ch-mine div { background: rgba(255,255,255,.04); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .ch-mine b { font-family: var(--disp); font-size: 1.6rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .ch-mine span { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  .cmp { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .cmp-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .cmp-head b { font-size: 1.05rem; }
+  .cmp-head .sub { color: var(--mute); font-size: .8rem; }
+  .cmp-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) 1fr 1fr; gap: 6px 10px; align-items: center; font-variant-numeric: tabular-nums; }
+  .cmp-grid .h { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  .cmp-grid .l { font-size: .85rem; color: var(--mute); }
+  .cmp-grid .v { font-family: var(--disp); font-size: 1.35rem; text-align: center; border-radius: 8px; padding: 2px 0; }
+  .cmp-grid .v.lead { background: rgba(123,216,143,.22); color: var(--ok); }
+  .cmp-sum { margin: 0; font-weight: 600; }
+  .cmp .del { align-self: flex-end; background: transparent; border: 1px solid var(--line); border-radius: 10px; min-height: 36px; padding: 0 12px; font-size: .82rem; font-weight: 600; color: var(--mute); }
+  .cmp .del.arm { background: var(--rec); border-color: var(--rec); color: #fff; }
+
+  #calInfo { margin: 0; font-size: .85rem; color: var(--mute); line-height: 1.4; }
   .hrow { border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 8px 14px; display: flex; align-items: center; gap: 10px; font-size: .9rem; }
   .hrow .info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .hrow .sub { color: var(--mute); font-size: .82rem; font-variant-numeric: tabular-nums; }
@@ -205,7 +270,11 @@
       </div>
     </div>
     <button id="btnCam" class="btn primary" type="button">Kamera aktivieren</button>
-    <button id="btnHistIntro" class="btn ghost" type="button">Verlauf</button>
+    <div class="rowbtn3">
+      <button id="btnHistIntro" class="btn ghost" type="button">Verlauf</button>
+      <button id="btnWarmIntro" class="btn ghost" type="button">Aufwärmen</button>
+      <button id="btnChIntro" class="btn ghost" type="button">Challenge</button>
+    </div>
     <p id="camErr" class="err" hidden></p>
     <p id="offlineNote"></p>
   </section>
@@ -256,7 +325,10 @@
           <button type="button" data-v="auto">Auto</button><button type="button" data-v="manual">Manuell</button>
         </div>
       </div>
-      <button id="btnStart" class="btn primary" type="button" style="width:100%;margin-top:6px">Start</button>
+      <div class="rowbtn" style="margin-top:6px">
+        <button id="btnWarm" class="btn ghost" type="button" style="min-height:58px">Aufwärmen</button>
+        <button id="btnStart" class="btn primary" type="button">Start</button>
+      </div>
       <p id="poseNote"><span id="poseText">Erkennung lädt …</span><button id="poseRetry" type="button" hidden>Erneut laden</button></p>
     </div>
     <div id="running" hidden>
@@ -292,9 +364,61 @@
   <section id="history" hidden>
     <h2>Verlauf</h2>
     <div id="histStats"></div>
+    <div id="histCal"></div>
     <div id="histChart"></div>
     <div id="histList"></div>
+    <button id="btnChHist" class="btn ghost" type="button">Challenge mit Kollegen</button>
     <button id="btnHistClose" class="btn ghost" type="button" style="margin-top:auto">Schließen</button>
+  </section>
+
+  <section id="warmup" hidden>
+    <h2>Aufwärmen</h2>
+    <div id="wuSetup" class="wu-list">
+      <p class="empty">Wähle die Übungen und ihre Dauer. Das Aufwärmen läuft ohne Töne, Übung und Restzeit stehen groß auf dem Bildschirm.</p>
+      <div id="wuItems" class="wu-list"></div>
+      <p id="wuTotal" class="empty"></p>
+      <button id="wuStart" class="btn primary" type="button">Aufwärmen starten</button>
+    </div>
+    <div id="wuRun" hidden>
+      <div class="wu-step" id="wuStep"></div>
+      <div class="wu-name" id="wuName"></div>
+      <p class="wu-desc" id="wuDesc"></p>
+      <div class="wu-time" id="wuTime">0</div>
+      <div class="wubar" id="wuBar"><i></i></div>
+      <div class="wu-next" id="wuNext"></div>
+      <div class="rowbtn">
+        <button id="wuPause" class="btn ghost" type="button">Pause</button>
+        <button id="wuSkip" class="btn ghost" type="button">Überspringen</button>
+      </div>
+    </div>
+    <div id="wuDone" hidden>
+      <div class="wu-name">Aufwärmen fertig</div>
+      <p class="wu-desc" id="wuDoneTxt">Handgelenke und Schultern sind bereit.</p>
+      <button id="wuGo" class="btn primary" type="button">Weiter zur Session</button>
+    </div>
+    <button id="wuClose" class="btn ghost" type="button" style="margin-top:auto">Schließen</button>
+  </section>
+
+  <section id="challenge" hidden>
+    <h2>Challenge</h2>
+    <p class="empty">Schick deine Werte an einen Kollegen und vergleicht euch. Es wird nichts hochgeladen: Ihr tauscht nur eine Nachricht mit einem Code aus.</p>
+    <div class="ch-box">
+      <label for="chName" class="lab2">Dein Name</label>
+      <input id="chName" type="text" maxlength="20" autocomplete="nickname" placeholder="z. B. Nils">
+      <div id="chMine" class="ch-mine"></div>
+      <button id="chShare" class="btn primary" type="button">Challenge-Karte teilen</button>
+      <button id="chCopy" class="btn ghost" type="button">Nur Code kopieren</button>
+    </div>
+    <div class="ch-box">
+      <label for="chIn" class="lab2">Nachricht deines Kollegen</label>
+      <textarea id="chIn" rows="3" placeholder="Ganze Nachricht mit dem Code hier einfügen"></textarea>
+      <div class="rowbtn">
+        <button id="chPaste" class="btn ghost" type="button">Einfügen</button>
+        <button id="chLoad" class="btn primary" type="button" style="min-height:48px">Vergleichen</button>
+      </div>
+    </div>
+    <div id="chList" class="wu-list"></div>
+    <button id="chClose" class="btn ghost" type="button" style="margin-top:auto">Schließen</button>
   </section>
 
   <div id="toast" hidden><span id="toastText"></span><button id="toastBtn" type="button" hidden></button></div>
@@ -362,10 +486,99 @@ function isInverted(lm) {
   if (torso < 0.03) return false;
   if (!(sh.y - hip.y > 0.5 * torso)) return false;                 // Hueften klar ueber den Schultern
   const leg = pairPt(lm, 27, 28, 0.3, 0.5) || pairPt(lm, 25, 26, 0.3, 0.5);
-  if (!leg || !(leg.y < hip.y - 0.35 * torso)) return false;      // Beine klar ueber den Hueften
+  const feet = pairPt(lm, 27, 28, 0.3, 0.5), knees = pairPt(lm, 25, 26, 0.3, 0.5);
+  const legsUp = !!leg && leg.y < hip.y - 0.35 * torso;                          // Beine klar ueber den Hueften
+  // Gehockt: Fuesse klar ueber den Schultern (also nicht am Boden), Knie ebenfalls oben
+  const tucked = !!feet && feet.y < sh.y - 0.5 * torso && (!knees || knees.y < sh.y - 0.5 * torso);
+  if (!legsUp && !tucked) return false;
   const wr = pairPt(lm, 15, 16, 0.4, 0.6);
   if (wr && wr.y < sh.y - 0.15 * torso) return false;              // Haende unten
   return true;
+}
+// ---- Variante und Stabilitaet ----
+function angleAt(a, b, c) {
+  const v1x = a.x - b.x, v1y = a.y - b.y, v2x = c.x - b.x, v2y = c.y - b.y;
+  const d = Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y);
+  if (!d) return null;
+  return Math.acos(Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / d))) * 180 / Math.PI;
+}
+// Ein Bild im Handstand -> Variante. Koordinaten in Pixeln (sx/sy skalieren 0..1 auf Bildbreite/-hoehe).
+// Gehockt: Knie stark gebeugt. Grätsche: Beine weit auseinander, Kamera sieht dich von vorne/hinten (breite Schultern).
+// Schritt: Beine weit auseinander, Kamera sieht dich von der Seite (schmale Schultern). Sonst: Gerade.
+function legVariant(lm, sx, sy) {
+  if (!lm) return null;
+  sx = sx || 1; sy = sy || 1;
+  const P = (q) => ({ x: q.x * sx, y: q.y * sy });
+  const sh = pairPt(lm, 11, 12, 0.35, 0.55), hip = pairPt(lm, 23, 24, 0.35, 0.55);
+  if (!sh || !hip) return null;
+  const torso = Math.hypot((sh.x - hip.x) * sx, (sh.y - hip.y) * sy);
+  if (torso < 1e-6) return null;
+  const legs = [];
+  [[23, 25, 27], [24, 26, 28]].forEach(([h, k, a]) => {
+    if (lmVis(lm, h, 0.3) && lmVis(lm, k, 0.3) && lmVis(lm, a, 0.3)) legs.push({ h: P(lm[h]), k: P(lm[k]), a: P(lm[a]) });
+  });
+  if (!legs.length) return null;
+  const knee = legs.map((L) => angleAt(L.h, L.k, L.a)).filter((x) => x !== null);
+  if (knee.length && knee.reduce((m, x) => m + x, 0) / knee.length < 115) return 'Gehockt';
+  if (legs.length < 2) return null;
+  const v0 = { x: legs[0].a.x - legs[0].h.x, y: legs[0].a.y - legs[0].h.y };
+  const v1 = { x: legs[1].a.x - legs[1].h.x, y: legs[1].a.y - legs[1].h.y };
+  const spread = angleAt({ x: v0.x, y: v0.y }, { x: 0, y: 0 }, { x: v1.x, y: v1.y });
+  if (spread !== null && spread > 45) {
+    const wide = lmVis(lm, 11, 0.35) && lmVis(lm, 12, 0.35)
+      && Math.hypot((lm[11].x - lm[12].x) * sx, (lm[11].y - lm[12].y) * sy) / torso > 0.3;
+    return wide ? 'Grätsche' : 'Schritt';
+  }
+  return 'Gerade';
+}
+// Messpunkt fuer einen Versuch: Huefte, Fuesse (sonst Knie), Rumpflaenge in Pixeln, Variante dieses Bildes.
+function holdSample(lm, sx, sy) {
+  const sh = pairPt(lm, 11, 12, 0.35, 0.55), hip = pairPt(lm, 23, 24, 0.35, 0.55);
+  if (!sh || !hip) return null;
+  const ft = pairPt(lm, 27, 28, 0.3, 0.5) || pairPt(lm, 25, 26, 0.3, 0.5);
+  return { hx: hip.x * sx, hy: hip.y * sy, fx: ft ? ft.x * sx : null, fy: ft ? ft.y * sy : null,
+    torso: Math.hypot((sh.x - hip.x) * sx, (sh.y - hip.y) * sy), variant: legVariant(lm, sx, sy) };
+}
+// Haeufigste Variante im Versuch (mindestens 3 Bilder mit erkannter Variante).
+function variantVote(samples) {
+  const c = {};
+  samples.forEach((x) => { if (x.variant) c[x.variant] = (c[x.variant] || 0) + 1; });
+  let bestV = null, n = 0;
+  Object.keys(c).forEach((k) => { if (c[k] > n) { n = c[k]; bestV = k; } });
+  return n >= 3 ? bestV : null;
+}
+// Stabilitaet 0..100: wie ruhig Huefte und Fuesse waren, relativ zur Rumpflaenge.
+// Ohne die ersten 0,6 s (Aufschwung) und die letzten 0,3 s (Abgang). Nur eine Erkennungsquelle, damit
+// Unterschiede zwischen den Modellen nicht als Wackeln zaehlen.
+function stabilityScore(samples, tStart, tEnd) {
+  const win = samples.filter((x) => x.t >= tStart + 600 && x.t <= tEnd - 300);
+  const cnt = {}; win.forEach((x) => { cnt[x.src] = (cnt[x.src] || 0) + 1; });
+  let src = null, n = 0; Object.keys(cnt).forEach((k) => { if (cnt[k] > n) { n = cnt[k]; src = k; } });
+  const S = win.filter((x) => x.src === src);
+  if (S.length < 5) return null;
+  const rms = (a) => { const m = a.reduce((p, x) => p + x, 0) / a.length; return Math.sqrt(a.reduce((p, x) => p + (x - m) * (x - m), 0) / a.length); };
+  const T = S.map((x) => x.torso).sort((a, b) => a - b)[Math.floor(S.length / 2)];
+  if (!(T > 0)) return null;
+  const hip = Math.hypot(rms(S.map((x) => x.hx)), rms(S.map((x) => x.hy)));
+  const F = S.filter((x) => x.fx !== null);
+  const foot = F.length >= 5 ? Math.hypot(rms(F.map((x) => x.fx)), rms(F.map((x) => x.fy))) : hip;
+  const sway = (0.6 * foot + 0.4 * hip) / T;
+  return Math.max(0, Math.min(100, Math.round(100 * Math.exp(-sway / 0.08))));
+}
+
+// MoveNet liefert 17 Punkte (COCO) als [y, x, Wert] im quadratischen Eingabebild.
+// Umrechnung in das MediaPipe-Format (33 Punkte, Bildkoordinaten 0..1), damit dieselbe Handstand-Logik greift.
+// flip: Eingabe war um 180 Grad gedreht. ox/oy/dw/dh: Lage des Kamerabilds im Quadrat der Kantenlaenge MN.
+const MN_MAP = { 0: 0, 5: 11, 6: 12, 7: 13, 8: 14, 9: 15, 10: 16, 11: 23, 12: 24, 13: 25, 14: 26, 15: 27, 16: 28 };
+function moveNetToLandmarks(d, flip, MN, ox, oy, dw, dh) {
+  const lm = []; for (let i = 0; i < 33; i++) lm.push({ x: 0, y: 0, visibility: 0 });
+  Object.keys(MN_MAP).forEach((c) => {
+    let y = d[c * 3], x = d[c * 3 + 1];
+    const sc = d[c * 3 + 2];
+    if (flip) { x = 1 - x; y = 1 - y; }
+    lm[MN_MAP[c]] = { x: (x * MN - ox) / dw, y: (y * MN - oy) / dh, visibility: Math.min(1, sc * 1.3) };
+  });
+  return lm;
 }
 // </detector>
 
@@ -604,7 +817,7 @@ function muxMp4(opts) {
       try { landmarker = await make('GPU'); } catch (e) { delegate = 'CPU'; landmarker = await make('CPU'); }
       poseState = 'ready';
       // Zweite Erkennung fuer das auf den Kopf gedrehte Bild: hilft besonders von vorne und hinten.
-      make(delegate).then((l) => { landmarkerRot = l; }).catch(() => {});
+      make(delegate).then((l) => { landmarkerRot = l; }).catch(() => {}).then(() => loadMoveNet());
       if (navigator.serviceWorker) navigator.serviceWorker.ready.then(() => { $('offlineNote').textContent = 'Offline-Nutzung bereit'; });
     } catch (e) {
       poseState = 'failed';
@@ -628,7 +841,7 @@ function muxMp4(opts) {
     // Zustand der Erkennung unter dem Start-Knopf
     let pt = '', bad = false;
     if (S.mode === 'manual') pt = 'Manuell: Tippe in der Session auf die Zeit zum Starten und Stoppen.';
-    else if (poseState === 'ready') pt = 'Erkennung bereit';
+    else if (poseState === 'ready') pt = mnState === 'ready' ? 'Erkennung bereit, auch von hinten' : mnState === 'loading' ? 'Erkennung bereit · Rücken-Erkennung lädt …' : 'Erkennung bereit';
     else if (poseState === 'failed') { pt = 'Die Erkennung konnte nicht geladen werden. Prüfe das Internet.'; bad = true; }
     else pt = 'Erkennung lädt …';
     $('poseText').textContent = pt;
@@ -652,10 +865,13 @@ function muxMp4(opts) {
 
   // Haelt die Seite immer oben fest. Eine verschobene Seite fuehrt auf dem iPhone zu versetzten Tipp-Flaechen.
   function resetScroll() {
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
     if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
     if (document.scrollingElement && document.scrollingElement.scrollTop) document.scrollingElement.scrollTop = 0;
   }
   ['resize', 'orientationchange', 'pageshow', 'focus', 'scroll'].forEach((e) => window.addEventListener(e, resetScroll));
+  document.addEventListener('focusout', () => setTimeout(resetScroll, 150));
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resetScroll);
 
   // ---- Screens ----
@@ -784,7 +1000,7 @@ function muxMp4(opts) {
     $('hint').textContent = (useAuto() ? 'Automatische Erkennung läuft. ' : 'Manuell: Tippe auf die Zeit zum Starten und Stoppen. ')
       + (baked ? 'Die Haltezeit wird ins Video eingeblendet.' : 'Dieses Gerät kann die Zeit nicht ins Video einblenden.');
     purgeOld(sessionId).then(() => saveMeta(false));
-    beep(1320, 0.4); updateStatus();
+    updateStatus();
   }
 
   // ---- Aufnahme in Teilen ----
@@ -884,7 +1100,8 @@ function muxMp4(opts) {
     review = { id: sessionId, startedAt: sessionStartedAt, attempts: attempts.slice(), parts: partSummary(), finished: true };
     const total = attempts.reduce((s, a) => s + a.dur, 0);
     addHist({ t: sessionStartedAt, n: attempts.length, best: attempts.reduce((m, a) => Math.max(m, a.dur), 0), total,
-      goalHits: attempts.filter((a) => a.goal).length, minHold: S.minHold, goal: S.goal,
+      goalHits: attempts.filter((a) => a.goal).length, minHold: S.minHold, goal: S.goal, stab: avgStab(attempts), warm: warmRecent(),
+      variants: attempts.reduce((m, a) => { if (a.variant) m[a.variant] = (m[a.variant] || 0) + 1; return m; }, {}),
       dur: Math.round((performance.now() - sessionStart) / 1000) });
     showReview();
   }
@@ -900,8 +1117,11 @@ function muxMp4(opts) {
     if (dur >= S.minHold) {
       const p = partAt(ev.start);
       const goal = S.goal > 0 && dur >= S.goal;
-      attempts.push({ part: p.n, vStart: (ev.start - p.start) / 1000, vEnd: (ev.end - p.start) / 1000, dur, goal, at: (ev.start - sessionStart) / 1000 });
-      lastResult = { text: fmtSec(dur), label: 'Versuch ' + attempts.length, until: now + 6000, cls: goal ? 'goal' : 'counts', vid: true, n: attempts.length, goal };
+      const W = holdSamples.filter((x) => x.t >= ev.start - 50 && x.t <= ev.end + 50);
+      const variant = variantVote(W), stab = stabilityScore(W, ev.start, ev.end);
+      attempts.push({ part: p.n, vStart: (ev.start - p.start) / 1000, vEnd: (ev.end - p.start) / 1000, dur, goal, at: (ev.start - sessionStart) / 1000, variant, stab });
+      const info = attInfo({ variant, stab });
+      lastResult = { text: fmtSec(dur), label: 'Versuch ' + attempts.length + (info ? ' · ' + info : ''), until: now + 6000, cls: goal ? 'goal' : 'counts', vid: true, n: attempts.length, goal, variant, stab };
       if (dur > best) { best = dur; try { localStorage.setItem('hs-best', String(best)); } catch (e) {} }
       if (!goal) beep(990, 0.25);
       say(Math.floor(dur) + ' Sekunden');
@@ -911,6 +1131,10 @@ function muxMp4(opts) {
     }
     updateStatus();
   }
+
+  const nVers = (n) => n + (n === 1 ? ' Versuch' : ' Versuche');
+  const attInfo = (a) => [a.variant, a.stab !== null && a.stab !== undefined ? 'Stabil ' + a.stab : null].filter(Boolean).join(' · ');
+  const avgStab = (A) => { const v = A.map((a) => a.stab).filter((x) => x !== null && x !== undefined); return v.length ? Math.round(v.reduce((m, x) => m + x, 0) / v.length) : null; };
 
   function renderStats() {
     $('stCount').textContent = String(attempts.length);
@@ -924,19 +1148,82 @@ function muxMp4(opts) {
   // ---- Schleife: Erkennung, Aufnahme-Canvas, Anzeige ----
   // Erkennung laeuft schon vor dem Start, damit du siehst, ob du richtig im Bild bist.
   let lastSeen = -1e9, lastLm = null, lastDetTs = 0;
-  let detFlip = false, lastNorm = null, lastRot = null, rotCv = null, rotCx = null;
+  // Messpunkte waehrend eines Versuchs (fuer Variante und Stabilitaet)
+  let holdSamples = [];
+  function collect(src, lm, inv, t) {
+    if (!inv || !lm || !(det.holding || det.invSince !== null) || !cam.videoWidth) return;
+    const smp = holdSample(lm, cam.videoWidth, cam.videoHeight);
+    if (smp) { smp.src = src; smp.t = t; holdSamples.push(smp); if (holdSamples.length > 4000) holdSamples.shift(); }
+  }
+  let detStep = 0, detFlip = false, lastNorm = null, lastRot = null, rotCv = null, rotCx = null;
   function detectOn(lmk, src, now) {
     const ts = Math.max(now, lastDetTs + 1); lastDetTs = ts;   // Zeitstempel muessen streng steigen
     const res = lmk.detectForVideo(src, ts);
     return (res && res.landmarks && res.landmarks[0]) || null;
   }
+  // ---- Zweite Erkennung (MoveNet) fuer Ansicht von hinten ----
+  // MediaPipe sucht Personen ueber das Gesicht. Von hinten gibt es keins, MoveNet braucht keins.
+  let mn = null, mnState = 'idle', mnBusy = false, mnFlip = true, lastMnN = null, lastMnR = null, mnCv = null, mnCx = null;
+  const MN = 192;
+  const loadScript = (src) => new Promise((res, rej) => {
+    const el = document.createElement('script'); el.src = src; el.async = true; el.crossOrigin = 'anonymous';
+    el.onload = res; el.onerror = () => rej(new Error('script ' + src)); document.head.appendChild(el);
+  });
+  async function loadMoveNet() {
+    if (mnState === 'loading' || mnState === 'ready') return;
+    mnState = 'loading';
+    try {
+      const B = 'https://cdn.jsdelivr.net/npm/@tensorflow/';
+      if (!window.tf) {
+        await loadScript(B + 'tfjs-core@4.22.0/dist/tf-core.min.js');
+        await loadScript(B + 'tfjs-converter@4.22.0/dist/tf-converter.min.js');
+        await loadScript(B + 'tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js');
+      }
+      await tf.setBackend('webgl'); await tf.ready();
+      mn = await tf.loadGraphModel('https://tfhub.dev/google/tfjs-model/movenet/singlepose/lightning/4', { fromTFHub: true });
+      const warm = tf.tidy(() => mn.execute(tf.zeros([1, MN, MN, 3], 'int32')));
+      await warm.data(); warm.dispose();
+      mnState = 'ready';
+    } catch (e) { mnState = 'failed'; mn = null; }
+    updateStatus();
+  }
+  // Laeuft asynchron: das Ergebnis landet in lastMn und wird beim naechsten Durchgang mit verrechnet.
+  function runMoveNet() {
+    if (mnState !== 'ready' || mnBusy || cam.readyState < 2 || !cam.videoWidth) return;
+    mnBusy = true;
+    const flip = mnFlip; mnFlip = !mnFlip;
+    const vw = cam.videoWidth, vh = cam.videoHeight, k = MN / Math.max(vw, vh);
+    const dw = vw * k, dh = vh * k, ox = (MN - dw) / 2, oy = (MN - dh) / 2;
+    if (!mnCv) { mnCv = document.createElement('canvas'); mnCv.width = mnCv.height = MN; mnCx = mnCv.getContext('2d', { willReadFrequently: true }); }
+    mnCx.setTransform(1, 0, 0, 1, 0, 0); mnCx.fillStyle = '#000'; mnCx.fillRect(0, 0, MN, MN);
+    if (flip) mnCx.setTransform(-1, 0, 0, -1, MN, MN);
+    mnCx.drawImage(cam, ox, oy, dw, dh);
+    mnCx.setTransform(1, 0, 0, 1, 0, 0);
+    let out;
+    try { out = tf.tidy(() => mn.execute(tf.browser.fromPixels(mnCv).expandDims(0).toInt())); }
+    catch (e) { mnBusy = false; return; }
+    out.data().then((d) => {
+      const lm = moveNetToLandmarks(d, flip, MN, ox, oy, dw, dh);
+      const res = { lm, inv: isInverted(lm), seen: bodySeen(lm), t: performance.now() };
+      if (flip) lastMnR = res; else lastMnN = res;
+      collect(flip ? 'mr' : 'mn', lm, res.inv, res.t);
+    }).catch(() => {}).finally(() => { try { out.dispose(); } catch (e) {} mnBusy = false; });
+  }
+
   // Abwechselnd: normales Bild und um 180 Grad gedrehtes Bild. Die Erkennung arbeitet mit aufrechten
   // Menschen am besten, im gedrehten Bild steht man im Handstand "aufrecht".
   function runDetection(now, every) {
     if (!useAuto() || cam.readyState < 2 || now - lastDet < every) return null;
     lastDet = now;
     try {
-      if (landmarkerRot && detFlip) {
+      // Sieht MediaPipe niemanden (z. B. von hinten), bekommt MoveNet 2 von 3 Durchgaengen, sonst 1 von 3.
+      const mpSees = (x) => x && x.seen && now - x.t < 1000;
+      const mpBlind = !mpSees(lastNorm) && !mpSees(lastRot);
+      detStep = (detStep + 1) % 3;
+      const useMn = mnState === 'ready' && (mpBlind ? detStep !== 0 : detStep === 2);
+      if (useMn) {
+        runMoveNet();
+      } else if (landmarkerRot && detFlip) {
         const vw = cam.videoWidth, vh = cam.videoHeight, k = Math.min(1, 640 / Math.max(vw, vh));
         const w = Math.round(vw * k), h = Math.round(vh * k);
         if (!rotCv) { rotCv = document.createElement('canvas'); rotCx = rotCv.getContext('2d'); }
@@ -947,18 +1234,25 @@ function muxMp4(opts) {
         const raw = detectOn(landmarkerRot, rotCv, now);
         const lm = raw ? raw.map((q) => ({ x: 1 - q.x, y: 1 - q.y, z: q.z, visibility: q.visibility })) : null;
         lastRot = { lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
+        collect('r', lm, lastRot.inv, now);
       } else {
         const lm = detectOn(landmarker, cam, now);
         lastNorm = { lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
+        collect('n', lm, lastNorm.inv, now);
       }
-      detFlip = !detFlip;
-      const fresh = (r) => (r && now - r.t < 450 ? r : null);
-      const n = fresh(lastNorm), r = fresh(lastRot);
-      const inv = !!((n && n.inv) || (r && r.inv));
-      const pick = r && (r.inv || (r.seen && !(n && n.seen))) ? r : n;
+      if (!useMn) detFlip = !detFlip;
+      // Jede Quelle (Blickwinkel) zaehlt fuer sich; ein Handstand gilt, sobald eine frische Quelle ihn sieht.
+      const fresh = (r) => (r && now - r.t < 600 ? r : null);
+      const srcs = [fresh(lastNorm), fresh(lastRot), fresh(lastMnN), fresh(lastMnR)].filter(Boolean);
+      const invSrc = srcs.filter((x) => x.inv);
+      const inv = invSrc.length > 0;
+      // Zeitpunkt der juengsten Beobachtung im Handstand: damit bleibt die gemessene Zeit genau
+      const tObs = inv ? Math.max.apply(null, invSrc.map((x) => x.t)) : now;
+      // Fuer das Skelett: bevorzugt eine Quelle, die den Handstand sieht, sonst eine, die den Koerper sieht
+      const pick = srcs.find((x) => x.inv) || srcs.find((x) => x.seen) || srcs[0] || null;
       lastLm = pick ? pick.lm : null;
-      if ((n && n.seen) || (r && r.seen)) lastSeen = now;
-      return { inv };
+      if (srcs.some((x) => x.seen)) lastSeen = now;
+      return { inv, t: tObs };
     } catch (e) { return null; }
   }
 
@@ -1009,7 +1303,8 @@ function muxMp4(opts) {
     if (phase !== 'session') { clearSkeleton(); return; }
     if (baked && now - lastDraw >= 30) { lastDraw = now; if (drawFrame(now)) feedEncoder(now); }
     const r = runDetection(now, 80);
-    if (r) { onEvent(det.feed(r.inv, now)); drawSkeleton(lastLm, r.inv); }
+    if (r) { onEvent(det.feed(r.inv, r.inv ? r.t : now)); drawSkeleton(lastLm, r.inv); }
+    if (!det.holding && det.invSince === null && holdSamples.length) holdSamples = [];
     if (!useAuto()) clearSkeleton();
     maybeRotate(now);
     renderSession(now);
@@ -1079,7 +1374,7 @@ function muxMp4(opts) {
         color = goalHit ? '#6ec6ff' : '#7bd88f';
       }
     } else if (lastResult && lastResult.vid && now < lastResult.until) {
-      label = 'Versuch ' + lastResult.n + (lastResult.goal ? ' · Ziel' : '');
+      label = 'Versuch ' + lastResult.n + (lastResult.goal ? ' · Ziel' : '') + (lastResult.variant ? ' · ' + lastResult.variant : '') + (lastResult.stab !== null && lastResult.stab !== undefined ? ' · ' + lastResult.stab : '');
       text = lastResult.text + ' s';
       color = lastResult.goal ? '#6ec6ff' : '#7bd88f';
     }
@@ -1155,7 +1450,7 @@ function muxMp4(opts) {
   function renderReview() {
     const A = review.attempts, total = A.reduce((s, a) => s + a.dur, 0), top = topAttempt();
     $('sumLine').textContent = A.length
-      ? A.length + ' Versuche · Bester ' + fmtSec(top.dur) + ' s · Gesamt ' + fmtSec(total) + ' s · ' + review.parts.length + ' Videoteile'
+      ? nVers(A.length) + ' · Bester ' + fmtSec(top.dur) + ' s · Gesamt ' + fmtSec(total) + ' s' + (avgStab(A) !== null ? ' · Ø Stabilität ' + avgStab(A) : '') + ' · ' + review.parts.length + ' Videoteile'
       : 'Kein Handstand erkannt. Die Videoteile kannst du trotzdem speichern. Tipp: Handy hochkant, ganzer Körper im Bild, gutes Licht.';
     const list = $('list'); list.textContent = '';
     A.forEach((a, i) => {
@@ -1165,7 +1460,10 @@ function muxMp4(opts) {
       play.type = 'button'; play.className = 'play';
       const n = document.createElement('span'); n.className = 'n'; n.textContent = String(i + 1);
       const d = document.createElement('span'); d.className = 'd'; d.textContent = fmtSec(a.dur) + ' s' + (a.goal ? ' ★' : '');
-      const t = document.createElement('span'); t.className = 't'; t.textContent = 'bei ' + clock(a.at * 1000);
+      const t = document.createElement('span'); t.className = 't';
+      const t1 = document.createElement('span'); t1.className = 'inf'; t1.textContent = attInfo(a);
+      const t2 = document.createElement('span'); t2.textContent = 'bei ' + clock(a.at * 1000);
+      if (t1.textContent) t.append(t1); t.append(t2);
       play.append(n, d, t);
       play.addEventListener('click', () => playAttempt(a));
       const clip = document.createElement('button');
@@ -1364,25 +1662,99 @@ function muxMp4(opts) {
     return s + '</svg>';
   }
 
-  let histPrev = [];
-  function closeHistory() {
-    $('history').hidden = true;
-    histPrev.forEach((id) => { $(id).hidden = false; });
-    histPrev = [];
+  // ---- Kalender ----
+  const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()); };
+  function aggDays(h) {
+    const agg = {};
+    h.forEach((x) => {
+      const k = dayKey(x.t), a = agg[k] || (agg[k] = { s: 0, n: 0, best: 0, total: 0, stab: [] });
+      a.s++; a.n += x.n || 0; a.best = Math.max(a.best, x.best || 0); a.total += x.total || 0;
+      if (x.stab !== null && x.stab !== undefined) a.stab.push(x.stab);
+    });
+    return agg;
   }
+  // Serie: Tage in Folge mit Training bis heute (heute darf noch fehlen)
+  function streakDays(h) {
+    const agg = aggDays(h), d = new Date(); d.setHours(12, 0, 0, 0);
+    if (!agg[dayKey(d.getTime())]) d.setDate(d.getDate() - 1);
+    let n = 0;
+    while (agg[dayKey(d.getTime())]) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  let calY = null, calM = null, calSel = null;
+  const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  const level = (a) => (!a ? 0 : a.total < 30 ? 1 : a.total < 90 ? 2 : a.total < 180 ? 3 : 4);
+  function renderCal(h) {
+    const agg = aggDays(h), now = new Date();
+    if (calY === null) { calY = now.getFullYear(); calM = now.getMonth(); }
+    const root = $('histCal'); root.textContent = '';
+    const head = document.createElement('div'); head.className = 'cal-head';
+    const prev = document.createElement('button'); prev.type = 'button'; prev.className = 'cal-nav'; prev.textContent = '‹'; prev.setAttribute('aria-label', 'Vorheriger Monat');
+    const next = document.createElement('button'); next.type = 'button'; next.className = 'cal-nav'; next.textContent = '›'; next.setAttribute('aria-label', 'Nächster Monat');
+    const title = document.createElement('b');
+    title.textContent = new Date(calY, calM, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    next.disabled = calY > now.getFullYear() || (calY === now.getFullYear() && calM >= now.getMonth());
+    prev.addEventListener('click', () => { calM--; if (calM < 0) { calM = 11; calY--; } calSel = null; renderCal(h); });
+    next.addEventListener('click', () => { calM++; if (calM > 11) { calM = 0; calY++; } calSel = null; renderCal(h); });
+    head.append(prev, title, next);
+    const grid = document.createElement('div'); grid.className = 'cal';
+    WD.forEach((w) => { const e = document.createElement('div'); e.className = 'wd'; e.textContent = w; grid.appendChild(e); });
+    const lead = (new Date(calY, calM, 1).getDay() + 6) % 7, days = new Date(calY, calM + 1, 0).getDate();
+    for (let i = 0; i < lead; i++) grid.appendChild(document.createElement('div'));
+    let trainDays = 0, monthTotal = 0;
+    const todayKey = dayKey(now.getTime());
+    for (let d = 1; d <= days; d++) {
+      const key = calY + '-' + two(calM + 1) + '-' + two(d), a = agg[key];
+      if (a) { trainDays++; monthTotal += a.total; }
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'd' + (key === todayKey ? ' today' : '') + (key === calSel ? ' sel' : '');
+      b.dataset.l = String(level(a)); b.dataset.key = key; b.textContent = String(d);
+      b.setAttribute('aria-label', d + '. ' + (a ? a.s + ' Session(s), ' + Math.round(a.total) + ' s' : 'kein Training'));
+      b.addEventListener('click', () => { calSel = calSel === key ? null : key; renderCal(h); });
+      grid.appendChild(b);
+    }
+    const info = document.createElement('p'); info.id = 'calInfo';
+    if (calSel) {
+      const a = agg[calSel], dt = new Date(calSel + 'T12:00:00');
+      const lbl = dt.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      info.textContent = a
+        ? lbl + ': ' + a.s + (a.s === 1 ? ' Session' : ' Sessions') + ' · ' + nVers(a.n) + ' · Bester ' + (a.best ? fmtSec(a.best) + ' s' : '–') + ' · Gesamt ' + Math.round(a.total) + ' s'
+          + (a.stab.length ? ' · Ø Stabil ' + Math.round(a.stab.reduce((m, x) => m + x, 0) / a.stab.length) : '')
+        : lbl + ': kein Training';
+    } else {
+      info.textContent = trainDays + (trainDays === 1 ? ' Trainingstag' : ' Trainingstage') + ' · Haltezeit ' + Math.round(monthTotal) + ' s · Tippe auf einen Tag für Details';
+    }
+    root.append(head, grid, info);
+  }
+
+  // Verlauf, Aufwaermen, Challenge legen sich ueber den aktuellen Bildschirm und stellen ihn beim Schliessen wieder her.
+  const SCREENS = ['intro', 'hud', 'timerWrap', 'sheet', 'review', 'history', 'warmup', 'challenge'];
+  const ovStack = [];
+  function openOverlay(id) {
+    if (!$(id).hidden) return;
+    const prev = SCREENS.filter((x) => x !== id && !$(x).hidden);
+    prev.forEach((x) => { $(x).hidden = true; });
+    ovStack.push({ id, prev });
+    $(id).hidden = false;
+    $(id).scrollTop = 0;
+  }
+  function closeOverlay(id) {
+    const i = ovStack.findIndex((o) => o.id === id);
+    $(id).hidden = true;
+    if (i >= 0) { ovStack[i].prev.forEach((x) => { $(x).hidden = false; }); ovStack.splice(i, 1); }
+  }
+  function closeHistory() { closeOverlay('history'); }
   function openHistory() {
     if (phase === 'session' || phase === 'stopping') return;
-    if ($('history').hidden) {
-      histPrev = ['intro', 'hud', 'timerWrap', 'sheet', 'review'].filter((id) => !$(id).hidden);
-      histPrev.forEach((id) => { $(id).hidden = true; });
-    }
+    openOverlay('history');
     const h = loadHist().filter((x) => x && typeof x.t === 'number');
     const withHolds = h.filter((x) => x.n > 0);
     const rec = h.reduce((m, x) => Math.max(m, x.best || 0), 0);
     const tot = h.reduce((s, x) => s + (x.total || 0), 0);
     $('histStats').innerHTML = '<div><b>' + h.length + '</b><span>Sessions</span></div>'
       + '<div><b>' + (rec ? fmtSec(rec) : '–') + '</b><span>Rekord (s)</span></div>'
-      + '<div><b>' + Math.round(tot) + '</b><span>Haltezeit (s)</span></div>';
+      + '<div><b>' + Math.round(tot) + '</b><span>Haltezeit (s)</span></div>'
+      + '<div><b>' + streakDays(h) + '</b><span>Serie (Tage)</span></div>';
+    renderCal(h);
     $('histChart').innerHTML = withHolds.length ? chartSvg(withHolds.slice(-14)) : '<p class="empty">Noch keine Sessions mit Handstand. Nach deiner ersten Session erscheint hier dein Verlauf.</p>';
     const list = $('histList'); list.textContent = '';
     h.slice().reverse().slice(0, 60).forEach((x) => {
@@ -1390,7 +1762,8 @@ function muxMp4(opts) {
       const info = document.createElement('div'); info.className = 'info';
       const a = document.createElement('span'); a.textContent = dateTime(x.t);
       const b = document.createElement('span'); b.className = 'sub';
-      b.textContent = x.n + ' Versuche · Bester ' + (x.best ? fmtSec(x.best) + ' s' : '–') + ' · Gesamt ' + Math.round(x.total || 0) + ' s';
+      b.textContent = nVers(x.n) + ' · Bester ' + (x.best ? fmtSec(x.best) + ' s' : '–') + ' · Gesamt ' + Math.round(x.total || 0) + ' s'
+        + (x.stab !== null && x.stab !== undefined ? ' · Ø Stabil ' + x.stab : '') + (x.warm ? ' · aufgewärmt' : '');
       info.append(a, b);
       // Loeschen mit Bestaetigung: erster Tipp macht den Knopf rot, zweiter Tipp loescht.
       const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = 'Löschen';
@@ -1430,6 +1803,303 @@ function muxMp4(opts) {
     } catch (e) {}
   }
 
+  // ================= Aufwaermen =================
+  const WU_DEFAULT = [
+    { id: 'band', name: 'Schultern mit Band dehnen', desc: 'Band weit greifen, Arme gestreckt langsam über den Kopf nach hinten und wieder nach vorne führen.', dur: 60, on: true },
+    { id: 'roll', name: 'Handgelenke rollen', desc: 'Hände locker kreisen, abwechselnd in beide Richtungen.', dur: 30, on: true },
+    { id: 'fwd', name: 'Handgelenke dehnen vorwärts', desc: 'Handflächen auf den Boden, Finger zeigen nach vorne. Gewicht langsam nach vorne verlagern.', dur: 30, on: true },
+    { id: 'back', name: 'Handgelenke dehnen rückwärts', desc: 'Finger zeigen zu dir. Gewicht sanft nach hinten verlagern, Ellbogen gestreckt.', dur: 30, on: true },
+    { id: 'finger', name: 'Fingerdrücken', desc: 'Mit den Fingerkuppen kräftig in den Boden drücken, Handballen leicht anheben, kurz halten und lösen.', dur: 30, on: true }
+  ];
+  const WU_PREP = 5;   // Sekunden Vorbereitung vor jeder Uebung
+  let wu = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem('hs-warmup') || 'null');
+    wu = WU_DEFAULT.map((d) => { const x = saved && saved.find((y) => y.id === d.id); return Object.assign({}, d, x ? { dur: x.dur, on: x.on } : {}); });
+  } catch (e) { wu = WU_DEFAULT.map((d) => Object.assign({}, d)); }
+  const saveWu = () => { try { localStorage.setItem('hs-warmup', JSON.stringify(wu.map((x) => ({ id: x.id, dur: x.dur, on: x.on })))); } catch (e) {} };
+  let warmAt = 0;
+  try { warmAt = parseFloat(localStorage.getItem('hs-warm')) || 0; } catch (e) {}
+  const warmRecent = () => Date.now() - warmAt < 90 * 60 * 1000;
+  const mmss = (sec) => { sec = Math.max(0, Math.ceil(sec)); return sec >= 60 ? Math.floor(sec / 60) + ':' + two(sec % 60) : String(sec); };
+
+  function renderWuSetup() {
+    const box = $('wuItems'); box.textContent = '';
+    wu.forEach((x) => {
+      const row = document.createElement('div'); row.className = 'wu-item' + (x.on ? '' : ' off');
+      const tg = document.createElement('button'); tg.type = 'button'; tg.className = 'tg'; tg.textContent = x.on ? '✓' : '';
+      tg.setAttribute('aria-pressed', String(x.on)); tg.setAttribute('aria-label', x.name + (x.on ? ' abwählen' : ' auswählen'));
+      tg.addEventListener('click', () => { x.on = !x.on; saveWu(); renderWuSetup(); });
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = x.name;
+      const st = document.createElement('div'); st.className = 'step';
+      const mi = document.createElement('button'); mi.type = 'button'; mi.textContent = '−'; mi.setAttribute('aria-label', x.name + ' kürzer');
+      const out = document.createElement('output'); out.textContent = x.dur + ' s';
+      const pl = document.createElement('button'); pl.type = 'button'; pl.textContent = '+'; pl.setAttribute('aria-label', x.name + ' länger');
+      mi.addEventListener('click', () => { x.dur = Math.max(10, x.dur - 10); saveWu(); renderWuSetup(); });
+      pl.addEventListener('click', () => { x.dur = Math.min(180, x.dur + 10); saveWu(); renderWuSetup(); });
+      st.append(mi, out, pl);
+      row.append(tg, nm, st); box.appendChild(row);
+    });
+    const act = wu.filter((x) => x.on);
+    const total = act.reduce((m, x) => m + x.dur + WU_PREP, 0);
+    $('wuTotal').textContent = act.length ? act.length + ' Übungen · etwa ' + Math.ceil(total / 60) + ' Minuten' : 'Wähle mindestens eine Übung.';
+    $('wuStart').disabled = !act.length;
+  }
+
+  // Ablauf: fuer jede Uebung erst Vorbereitung (WU_PREP s), dann die Uebung selbst.
+  let wuRun = null, wuTimer = null;
+  function openWarmup() {
+    if (phase === 'session' || phase === 'stopping') return;
+    openOverlay('warmup');
+    $('wuSetup').hidden = false; $('wuRun').hidden = true; $('wuDone').hidden = true;
+    renderWuSetup();
+  }
+  function wuStartRun() {
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
+    try { if ('speechSynthesis' in window) { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('')); } } catch (e) {}
+    const list = wu.filter((x) => x.on);
+    if (!list.length) return;
+    wuRun = { list, i: 0, stage: 'prep', endAt: 0, left: 0, paused: false, lastBeep: -1, done: 0 };
+    $('wuSetup').hidden = true; $('wuRun').hidden = false; $('wuDone').hidden = true;
+    $('wuPause').textContent = 'Pause';
+    lockScreen();
+    wuEnter('prep');
+    clearInterval(wuTimer); wuTimer = setInterval(wuTick, 100);
+  }
+  function wuEnter(stage) {
+    const r = wuRun, x = r.list[r.i];
+    r.stage = stage; r.lastBeep = -1;
+    const dur = stage === 'prep' ? WU_PREP : x.dur;
+    r.endAt = performance.now() + dur * 1000; r.total = dur;
+    $('wuStep').textContent = 'Übung ' + (r.i + 1) + ' von ' + r.list.length + (stage === 'prep' ? ' · Gleich geht’s los' : '');
+    $('wuName').textContent = x.name;
+    $('wuDesc').textContent = x.desc;
+    const nx = r.list[r.i + 1];
+    $('wuNext').textContent = nx ? 'Danach: ' + nx.name : 'Danach: fertig';
+    wuTick();
+  }
+  function wuTick() {
+    const r = wuRun; if (!r) return;
+    const left = r.paused ? r.left : (r.endAt - performance.now()) / 1000;
+    const el = $('wuTime');
+    el.textContent = mmss(left);
+    el.classList.toggle('prep', r.stage === 'prep');
+    $('wuBar').querySelector('i').style.width = Math.round(Math.max(0, Math.min(1, 1 - left / r.total)) * 100) + '%';
+    if (r.paused) return;
+    const sec = Math.ceil(left);
+    if (left <= 0) wuAdvance(true);
+  }
+  function wuAdvance(completed) {
+    const r = wuRun; if (!r) return;
+    if (r.stage === 'prep') { wuEnter('go'); return; }
+    if (completed) r.done++;
+    r.i++;
+    if (r.i >= r.list.length) { wuFinish(); return; }
+    wuEnter('prep');
+  }
+  function wuFinish() {
+    const r = wuRun;
+    clearInterval(wuTimer); wuTimer = null; wuRun = null;
+    if (phase !== 'session') unlockScreen();
+    // Als aufgewaermt zaehlt, wer mindestens die Haelfte der Uebungen gemacht hat
+    if (r && r.done >= Math.ceil(r.list.length / 2)) {
+      warmAt = Date.now();
+      try { localStorage.setItem('hs-warm', String(warmAt)); } catch (e) {}
+    }
+    $('wuRun').hidden = true; $('wuDone').hidden = false;
+    $('wuDoneTxt').textContent = r ? r.done + ' von ' + r.list.length + ' Übungen gemacht.' : '';
+    $('wuGo').textContent = phase === 'idle' ? 'Session starten' : 'Weiter zur Kamera';
+  }
+  function wuStop() { clearInterval(wuTimer); wuTimer = null; wuRun = null; if (phase !== 'session') unlockScreen(); try { speechSynthesis.cancel(); } catch (e) {} }
+
+  $('btnWarm').addEventListener('click', openWarmup);
+  $('btnWarmIntro').addEventListener('click', openWarmup);
+  $('wuStart').addEventListener('click', wuStartRun);
+  $('wuPause').addEventListener('click', () => {
+    const r = wuRun; if (!r) return;
+    if (!r.paused) { r.left = (r.endAt - performance.now()) / 1000; r.paused = true; $('wuPause').textContent = 'Weiter'; }
+    else { r.endAt = performance.now() + r.left * 1000; r.paused = false; $('wuPause').textContent = 'Pause'; }
+    wuTick();
+  });
+  $('wuSkip').addEventListener('click', () => { const r = wuRun; if (!r) return; if (r.paused) { r.paused = false; $('wuPause').textContent = 'Pause'; } if (r.stage === 'prep') wuEnter('go'); else wuAdvance(false); });
+  $('wuClose').addEventListener('click', () => { wuStop(); closeOverlay('warmup'); });
+  $('wuGo').addEventListener('click', () => {
+    closeOverlay('warmup');
+    if (phase === 'idle') beginSession();
+    else if (phase === 'intro') $('btnCam').click();
+  });
+
+  // ================= Challenge =================
+  // Ein Code im Nachrichtentext traegt deine Werte. WhatsApp & Co. lassen Text unveraendert, Bilder nicht immer.
+  const b64u = (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const unb64u = (str) => decodeURIComponent(escape(atob(str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4))));
+  const weekStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+  let myName = '';
+  try { myName = localStorage.getItem('hs-name') || ''; } catch (e) {}
+  let friends = {};
+  try { friends = JSON.parse(localStorage.getItem('hs-friends') || '{}') || {}; } catch (e) { friends = {}; }
+  const saveFriends = () => { try { localStorage.setItem('hs-friends', JSON.stringify(friends)); } catch (e) {} };
+
+  function myStats() {
+    const h = loadHist().filter((x) => x && typeof x.t === 'number');
+    const ws = weekStart(Date.now()), wk = h.filter((x) => x.t >= ws);
+    const sv = wk.map((x) => x.stab).filter((v) => v !== null && v !== undefined);
+    return { v: 1, n: (myName || '').trim().slice(0, 20), rec: Math.round(best * 10) / 10, wk: Math.round(wk.reduce((m, x) => m + (x.total || 0), 0)),
+      ws: wk.length, st: streakDays(h), sb: sv.length ? Math.round(sv.reduce((m, x) => m + x, 0) / sv.length) : null, w: dayKey(ws), d: Date.now() };
+  }
+  const codeOf = (st) => 'HSC1.' + b64u(JSON.stringify(st));
+  function parseCode(text) {
+    const m = /HSC1\.([A-Za-z0-9_-]{10,})/.exec(text || '');
+    if (!m) return null;
+    try {
+      const o = JSON.parse(unb64u(m[1]));
+      const num = (x) => (typeof x === 'number' && isFinite(x) ? x : null);
+      if (!o || o.v !== 1) return null;
+      return { n: String(o.n || 'Kollege').slice(0, 20), rec: num(o.rec) || 0, wk: num(o.wk) || 0, ws: num(o.ws) || 0, st: num(o.st) || 0,
+        sb: num(o.sb), w: typeof o.w === 'string' ? o.w.slice(0, 10) : '', d: num(o.d) || 0 };
+    } catch (e) { return null; }
+  }
+  function shareText(st) {
+    return 'Handstand-Challenge von ' + (st.n || 'mir') + ': Rekord ' + (st.rec ? fmtSec(st.rec) + ' s' : '–') + ' · diese Woche ' + st.wk + ' s Haltezeit · Serie ' + st.st + (st.st === 1 ? ' Tag' : ' Tage')
+      + '\nIn Handstand Logbuch unter „Challenge“ einfügen:\n' + codeOf(st);
+  }
+
+  function renderMine() {
+    const st = myStats();
+    $('chMine').innerHTML = '';
+    [[st.rec ? fmtSec(st.rec) + ' s' : '–', 'Rekord'], [st.wk + ' s', 'Diese Woche'], [st.st + (st.st === 1 ? ' Tag' : ' Tage'), 'Serie'], [st.sb === null ? '–' : String(st.sb), 'Ø Stabilität']].forEach(([v, l]) => {
+      const d = document.createElement('div'); const b = document.createElement('b'); b.textContent = v; const sp = document.createElement('span'); sp.textContent = l;
+      d.append(b, sp); $('chMine').appendChild(d);
+    });
+  }
+
+  function renderFriends() {
+    const box = $('chList'); box.textContent = '';
+    const me = myStats();
+    Object.keys(friends).forEach((key) => {
+      const f = friends[key], sameWeek = f.w === me.w;
+      const card = document.createElement('div'); card.className = 'cmp';
+      const head = document.createElement('div'); head.className = 'cmp-head';
+      const hb = document.createElement('b'); hb.textContent = 'Du vs. ' + f.n;
+      const hs = document.createElement('span'); hs.className = 'sub'; hs.textContent = 'Stand ' + (f.d ? dateTime(f.d) : '–');
+      head.append(hb, hs);
+      const g = document.createElement('div'); g.className = 'cmp-grid';
+      const cell = (txt, cls) => { const e = document.createElement('div'); e.className = cls; e.textContent = txt; g.appendChild(e); };
+      cell('', 'h'); cell('Du', 'h v'); cell(f.n, 'h v');
+      const row = (label, a, b, show) => {
+        cell(label, 'l');
+        const has = a !== null && b !== null;
+        cell(a === null ? '–' : show(a), 'v' + (has && a > b ? ' lead' : ''));
+        cell(b === null ? '–' : show(b), 'v' + (has && b > a ? ' lead' : ''));
+      };
+      row('Rekord', me.rec, f.rec, (x) => (x ? fmtSec(x) + ' s' : '–'));
+      row('Haltezeit diese Woche', me.wk, sameWeek ? f.wk : null, (x) => x + ' s');
+      row('Sessions diese Woche', me.ws, sameWeek ? f.ws : null, (x) => String(x));
+      row('Serie', me.st, f.st, (x) => x + (x === 1 ? ' Tag' : ' Tage'));
+      row('Ø Stabilität (Woche)', me.sb, sameWeek ? f.sb : null, (x) => String(x));
+      const sum = document.createElement('p'); sum.className = 'cmp-sum';
+      if (!sameWeek) sum.textContent = 'Die Wochenwerte von ' + f.n + ' sind aus einer anderen Woche. Bitte um einen neuen Code.';
+      else if (me.wk > f.wk) sum.textContent = 'Wochen-Challenge: Du führst mit ' + (me.wk - f.wk) + ' s Vorsprung.';
+      else if (f.wk > me.wk) sum.textContent = 'Wochen-Challenge: ' + f.n + ' führt mit ' + (f.wk - me.wk) + ' s. Hol ihn ein!';
+      else sum.textContent = 'Wochen-Challenge: Gleichstand.';
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = 'Entfernen';
+      let armT = null;
+      del.addEventListener('click', () => {
+        if (!del.classList.contains('arm')) { del.classList.add('arm'); del.textContent = 'Sicher?'; armT = setTimeout(() => { del.classList.remove('arm'); del.textContent = 'Entfernen'; }, 3000); return; }
+        clearTimeout(armT); delete friends[key]; saveFriends(); renderFriends();
+      });
+      card.append(head, g, sum, del); box.appendChild(card);
+    });
+  }
+
+  function openChallenge() {
+    if (phase === 'session' || phase === 'stopping') return;
+    openOverlay('challenge');
+    $('chName').value = myName;
+    renderMine(); renderFriends();
+  }
+
+  // Challenge-Karte als Bild (1080 x 1350, passt fuer WhatsApp und Instagram)
+  function drawCard(st) {
+    const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#2a2d32'); bg.addColorStop(1, '#0b0c0e');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const face = '"Barlow Condensed","Arial Narrow",Arial,sans-serif';
+    const logo = document.querySelector('#splash img');
+    if (logo && logo.complete && logo.naturalWidth) { g.save(); roundRect(g, 80, 80, 150, 150, 34); g.clip(); g.drawImage(logo, 80, 80, 150, 150); g.restore(); }
+    g.fillStyle = '#f1efe9'; g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+    g.font = '700 64px ' + face; g.fillText('HANDSTAND', 260, 150);
+    g.fillText('LOGBUCH', 260, 215);
+    g.fillStyle = '#a7a59d'; g.font = '600 40px ' + face; g.fillText('CHALLENGE VON', 80, 360);
+    g.fillStyle = '#f1efe9'; g.font = '700 120px ' + face; g.fillText((st.n || 'Ich').toUpperCase(), 80, 470);
+    const tiles = [['REKORD', st.rec ? fmtSec(st.rec) + ' s' : '–', '#7bd88f'], ['DIESE WOCHE', st.wk + ' s', '#f1efe9'], ['SERIE', st.st + (st.st === 1 ? ' TAG' : ' TAGE'), '#ffb703'], ['Ø STABILITÄT', st.sb === null ? '–' : String(st.sb), '#6ec6ff']];
+    tiles.forEach(([l, v, col], i) => {
+      const x = 80 + (i % 2) * 470, y = 560 + Math.floor(i / 2) * 300;
+      g.fillStyle = 'rgba(255,255,255,0.06)'; roundRect(g, x, y, 450, 270, 28); g.fill();
+      g.fillStyle = '#a7a59d'; g.font = '600 38px ' + face; g.fillText(l, x + 36, y + 70);
+      g.fillStyle = col; g.font = '700 120px ' + face; g.fillText(v, x + 36, y + 210);
+    });
+    g.fillStyle = '#a7a59d'; g.font = '600 34px ' + face;
+    g.fillText('Woche ab ' + dayStr(weekStart(st.d)) + ' · ' + st.ws + (st.ws === 1 ? ' Session' : ' Sessions') + ' · Code steht in der Nachricht', 80, 1250);
+    return c;
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+    try {
+      const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+      document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok;
+    } catch (e) { return false; }
+  }
+  function needName() {
+    myName = $('chName').value.trim().slice(0, 20);
+    try { localStorage.setItem('hs-name', myName); } catch (e) {}
+    if (!myName) { toast('Gib zuerst deinen Namen ein.', null, null, 2500); $('chName').focus(); return true; }
+    return false;
+  }
+  $('chName').addEventListener('change', () => { myName = $('chName').value.trim().slice(0, 20); try { localStorage.setItem('hs-name', myName); } catch (e) {} });
+  $('chShare').addEventListener('click', async () => {
+    if (needName()) return;
+    const st = myStats(), text = shareText(st);
+    try { localStorage.setItem('hs-lastcode', String(st.d)); } catch (e) {}
+    let file = null;
+    try {
+      const blob = await new Promise((res) => drawCard(st).toBlob(res, 'image/png'));
+      if (blob) file = new File([blob], 'handstand-challenge.png', { type: 'image/png' });
+    } catch (e) {}
+    try {
+      if (file && navigator.canShare && navigator.canShare({ files: [file], text })) { await navigator.share({ files: [file], text }); toast('Falls der Code beim Kollegen fehlt: „Nur Code kopieren“ und hinterherschicken.', null, null, 5000); return; }
+      if (navigator.share) { await navigator.share({ text }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    const ok = await copyText(text);
+    toast(ok ? 'Teilen geht hier nicht. Die Nachricht mit Code ist kopiert, füge sie in WhatsApp ein.' : 'Teilen geht hier nicht.', null, null, 5000);
+  });
+  $('chCopy').addEventListener('click', async () => {
+    if (needName()) return;
+    const st = myStats();
+    try { localStorage.setItem('hs-lastcode', String(st.d)); } catch (e) {}
+    const ok = await copyText(shareText(st));
+    toast(ok ? 'Nachricht mit Code kopiert. Jetzt in WhatsApp einfügen und senden.' : 'Kopieren hat nicht geklappt.', null, null, 3500);
+  });
+  $('chPaste').addEventListener('click', async () => {
+    try { const t = await navigator.clipboard.readText(); if (t) $('chIn').value = t; }
+    catch (e) { toast('Tippe lange in das Feld und wähle „Einsetzen“.', null, null, 3000); $('chIn').focus(); }
+  });
+  $('chLoad').addEventListener('click', () => {
+    const f = parseCode($('chIn').value);
+    if (!f) { toast('Kein Challenge-Code gefunden. Füge die ganze Nachricht deines Kollegen ein.', null, null, 4000); return; }
+    let last = 0; try { last = parseFloat(localStorage.getItem('hs-lastcode')) || 0; } catch (e) {}
+    if (f.d && f.d === last) { toast('Das ist dein eigener Code. Füge den Code deines Kollegen ein.', null, null, 3500); return; }
+    friends[f.n.toLowerCase()] = f; saveFriends();
+    $('chIn').value = ''; $('chIn').blur();
+    renderFriends();
+    toast('Vergleich mit ' + f.n + ' aktualisiert', null, null, 2500);
+  });
+  $('chClose').addEventListener('click', () => { $('chName').blur(); $('chIn').blur(); closeOverlay('challenge'); });
+  $('btnChIntro').addEventListener('click', openChallenge);
+  $('btnChHist').addEventListener('click', () => { closeOverlay('history'); openChallenge(); });
+
   // ---- Buttons ----
   $('btnCam').addEventListener('click', async () => {
     $('camErr').hidden = true;
@@ -1456,7 +2126,10 @@ function muxMp4(opts) {
   $('btnHistReview').addEventListener('click', openHistory);
   $('btnHistClose').addEventListener('click', closeHistory);
   $('poseRetry').addEventListener('click', () => { if (poseState === 'failed') { poseState = 'idle'; loadPose(); } });
-  window.addEventListener('online', () => { if (poseState === 'failed') { poseState = 'idle'; loadPose(); } });
+  window.addEventListener('online', () => {
+    if (poseState === 'failed') { poseState = 'idle'; loadPose(); }
+    else if (poseState === 'ready' && mnState === 'failed') { mnState = 'idle'; loadMoveNet(); }
+  });
   $('btnRecOpen').addEventListener('click', () => {
     if (!savedMeta) return;
     review = savedMeta; phase = 'review'; showReview();

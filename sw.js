@@ -1,7 +1,7 @@
 // Service Worker fuer Handstand Logbuch: macht die App offline nutzbar.
 // Eigene Dateien: erst Netz (damit Updates sofort ankommen), sonst Zwischenspeicher.
 // Erkennungs-Bibliothek, Modell und Schrift: einmal laden, danach aus dem Zwischenspeicher.
-const CORE = 'hs-core-v6';
+const CORE = 'hs-core-v10';
 const LIB = 'hs-lib-v1';
 const CORE_FILES = ['handstand-log.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 const POSE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
@@ -62,5 +62,6 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin === self.location.origin) { e.respondWith(networkFirst(req)); return; }
-  if (LIB_HOSTS.indexOf(url.hostname) >= 0) e.respondWith(cacheFirst(req));
+  // Alle fremden Dateien (Erkennungs-Bibliotheken, Modelle, Schrift): einmal laden, danach offline aus dem Speicher
+  e.respondWith(cacheFirst(req));
 });
