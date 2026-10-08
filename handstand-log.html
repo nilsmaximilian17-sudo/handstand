@@ -357,7 +357,7 @@
       <button id="btnSaveAll" class="btn ghost" type="button">Ganze Session speichern</button>
       <p class="empty" style="font-size:.8rem">Nur was du hier speicherst, landet in Fotos oder Dateien. Alles andere wird beim Start der nächsten Session gelöscht.</p>
       <button id="btnHistReview" class="btn ghost" type="button">Verlauf</button>
-      <button id="btnDiag" class="btn ghost" type="button" style="min-height:44px;font-size:.9rem;color:var(--mute)">Diagnose-Datei für Claude teilen</button>
+      <button id="btnDiag" class="btn ghost" type="button" style="min-height:44px;font-size:.9rem;color:var(--mute)" hidden>Diagnose-Datei für Claude teilen</button>
       <button id="btnNew" class="btn ghost" type="button">Neue Session</button>
     </div>
   </section>
@@ -369,6 +369,7 @@
     <div id="histChart"></div>
     <div id="histList"></div>
     <button id="btnChHist" class="btn ghost" type="button">Challenge mit Kollegen</button>
+    <button id="btnReset" class="btn ghost" type="button" style="min-height:44px;font-size:.9rem;color:var(--rec)">Alle Trainingsdaten löschen</button>
     <button id="btnHistClose" class="btn ghost" type="button" style="margin-top:auto">Schließen</button>
   </section>
 
@@ -1219,7 +1220,10 @@ function muxMp4(opts) {
   const DIAG_KP = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 0];
   let diag = null;
   const dT = (t) => Math.round((t - sessionStart) * 10) / 10;
+  // Nur mit ?diag=1 im Link aktiv (fuer die Fehlersuche). Sonst wird nichts mitgeschrieben.
+  const DIAG_ON = /[?&]diag=1/.test(location.search);
   function diagStart() {
+    if (!DIAG_ON) { diag = null; return; }
     diag = { v: 1, app: 'Handstand Logbuch', created: new Date().toISOString(), ua: navigator.userAgent,
       video: [cam.videoWidth, cam.videoHeight], minHold: S.minHold, kp: DIAG_KP, log: [] };
   }
@@ -1553,7 +1557,7 @@ function muxMp4(opts) {
     $('btnBest').disabled = !top;
     $('btnBest').textContent = top ? 'Besten Versuch speichern (' + fmtSec(top.dur) + ' s)' : 'Besten Versuch speichern';
     $('btnSaveAll').disabled = !review.parts.length;
-    $('btnDiag').hidden = !review.diag;
+    $('btnDiag').hidden = !(DIAG_ON && review.diag);
   }
 
   async function loadPart(n) {
@@ -2200,6 +2204,39 @@ function muxMp4(opts) {
   $('btnHistIntro').addEventListener('click', openHistory);
   $('btnHistReview').addEventListener('click', openHistory);
   $('btnHistClose').addEventListener('click', closeHistory);
+  // Alles auf null: Verlauf, Bestzeit, Challenge-Vergleiche, Aufwaerm-Vermerk und gespeicherte Videos.
+  // Einstellungen, Name und Aufwaerm-Uebungen bleiben.
+  let resetArmed = false, resetT = null;
+  $('btnReset').addEventListener('click', async () => {
+    const b = $('btnReset');
+    if (!resetArmed) {
+      resetArmed = true; b.textContent = 'Wirklich alles löschen? Nochmal tippen';
+      resetT = setTimeout(() => { resetArmed = false; b.textContent = 'Alle Trainingsdaten löschen'; }, 4000);
+      return;
+    }
+    clearTimeout(resetT); resetArmed = false; b.textContent = 'Alle Trainingsdaten löschen';
+    ['hs-history', 'hs-best', 'hs-friends', 'hs-warm', 'hs-lastcode'].forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
+    best = 0; friends = {}; warmAt = 0;
+    mem.clear();
+    try {
+      for (const k of await idb.keys('sessions')) await idb.del('sessions', k);
+      for (const k of await idb.keys('parts')) await idb.del('parts', k);
+    } catch (e) {}
+    savedMeta = null; $('recover').hidden = true;
+    // War gerade eine Auswertung offen, ist ihr Video jetzt weg: zurueck zum Startbildschirm statt zur leeren Auswertung.
+    if (review) {
+      closeOverlay('history');
+      newArmed = false; $('btnNew').textContent = 'Neue Session';
+      player.pause(); player.removeAttribute('src'); player.load();
+      if (partUrl) { URL.revokeObjectURL(partUrl); partUrl = null; }
+      loadedPart = -1; stopAt = null; review = null;
+      $('toast').hidden = true;
+      if (stream && stream.active) showIdle(); else showIntro();
+    }
+    updateStatus();
+    openHistory();
+    toast('Alle Trainingsdaten gelöscht. Du startest bei null.', null, null, 3000);
+  });
   $('poseRetry').addEventListener('click', () => { if (poseState === 'failed') { poseState = 'idle'; loadPose(); } });
   window.addEventListener('online', () => {
     if (poseState === 'failed') { poseState = 'idle'; loadPose(); }
