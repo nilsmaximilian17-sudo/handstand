@@ -141,6 +141,11 @@
   #review::after, #history::after, #warmup::after, #challenge::after { content: ''; display: block; flex: 0 0 auto;
     height: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .btn { white-space: normal; line-height: 1.2; }
+  .ovhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .xbtn { flex: 0 0 auto; width: 44px; height: 44px; margin: -6px -8px -6px 0; padding: 0; display: grid; place-items: center;
+    background: transparent; border: 0; color: var(--fg); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .xbtn svg { width: 30px; height: 30px; padding: 8px; box-sizing: border-box; border-radius: 50%; background: rgba(255,255,255,.12); }
+  .xbtn:active svg { background: rgba(255,255,255,.25); }
   h2 { font-family: var(--disp); text-transform: uppercase; font-size: 2rem; margin: 0; line-height: 1; }
   #player { width: 100%; max-height: 42vh; background: #000; border-radius: 12px; flex: 0 0 auto; }
   .empty { color: var(--mute); line-height: 1.5; margin: 0; font-size: .92rem; }
@@ -363,18 +368,17 @@
   </section>
 
   <section id="history" hidden>
-    <h2>Verlauf</h2>
+    <div class="ovhead"><h2>Verlauf</h2><button id="btnHistClose" class="xbtn" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg></button></div>
     <div id="histStats"></div>
     <div id="histCal"></div>
     <div id="histChart"></div>
     <div id="histList"></div>
     <button id="btnChHist" class="btn ghost" type="button">Challenge mit Kollegen</button>
     <button id="btnReset" class="btn ghost" type="button" style="min-height:44px;font-size:.9rem;color:var(--rec)">Alle Trainingsdaten löschen</button>
-    <button id="btnHistClose" class="btn ghost" type="button" style="margin-top:auto">Schließen</button>
   </section>
 
   <section id="warmup" hidden>
-    <h2>Aufwärmen</h2>
+    <div class="ovhead"><h2>Aufwärmen</h2><button id="wuClose" class="xbtn" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg></button></div>
     <div id="wuSetup" class="wu-list">
       <p class="empty">Wähle die Übungen und ihre Dauer. Das Aufwärmen läuft ohne Töne, Übung und Restzeit stehen groß auf dem Bildschirm.</p>
       <div id="wuItems" class="wu-list"></div>
@@ -398,11 +402,10 @@
       <p class="wu-desc" id="wuDoneTxt">Handgelenke und Schultern sind bereit.</p>
       <button id="wuGo" class="btn primary" type="button">Weiter zur Session</button>
     </div>
-    <button id="wuClose" class="btn ghost" type="button" style="margin-top:auto">Schließen</button>
   </section>
 
   <section id="challenge" hidden>
-    <h2>Challenge</h2>
+    <div class="ovhead"><h2>Challenge</h2><button id="chClose" class="xbtn" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg></button></div>
     <p class="empty">Schick deine Werte an einen Kollegen und vergleicht euch. Es wird nichts hochgeladen: Ihr tauscht nur eine Nachricht mit einem Code aus.</p>
     <div class="ch-box">
       <label for="chName" class="lab2">Dein Name</label>
@@ -420,7 +423,6 @@
       </div>
     </div>
     <div id="chList" class="wu-list"></div>
-    <button id="chClose" class="btn ghost" type="button" style="margin-top:auto">Schließen</button>
   </section>
 
   <div id="toast" hidden><span id="toastText"></span><button id="toastBtn" type="button" hidden></button></div>
