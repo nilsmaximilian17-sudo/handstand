@@ -352,10 +352,6 @@
       <button id="btnBest" class="btn primary" type="button">Besten Versuch speichern</button>
       <button id="btnSaveAll" class="btn ghost" type="button">Ganze Session speichern</button>
       <p class="empty" style="font-size:.8rem">Nur was du hier speicherst, landet in Fotos oder Dateien. Alles andere wird beim Start der nächsten Session gelöscht.</p>
-      <details>
-        <summary>Videoteile einzeln</summary>
-        <div id="partList"></div>
-      </details>
       <button id="btnHistReview" class="btn ghost" type="button">Verlauf</button>
       <button id="btnNew" class="btn ghost" type="button">Neue Session</button>
     </div>
@@ -491,8 +487,10 @@ function isInverted(lm) {
   // Gehockt: Fuesse klar ueber den Schultern (also nicht am Boden), Knie ebenfalls oben
   const tucked = !!feet && feet.y < sh.y - 0.5 * torso && (!knees || knees.y < sh.y - 0.5 * torso);
   if (!legsUp && !tucked) return false;
-  const wr = pairPt(lm, 15, 16, 0.4, 0.6);
-  if (wr && wr.y < sh.y - 0.15 * torso) return false;              // Haende unten
+  // Pflicht: Haende klar unter den Schultern (am Boden). Schuetzt vor Fehldeutungen, bei denen ein stehender
+  // Mensch falsch herum erkannt wird (dann haengen die "Haende" auf Hueftehoehe).
+  const wr = pairPt(lm, 15, 16, 0.3, 0.45);
+  if (!wr || !(wr.y > sh.y + 0.3 * torso)) return false;
   return true;
 }
 // ---- Variante und Stabilitaet ----
@@ -553,7 +551,10 @@ function variantVote(samples) {
 function stabilityScore(samples, tStart, tEnd) {
   const win = samples.filter((x) => x.t >= tStart + 600 && x.t <= tEnd - 300);
   const cnt = {}; win.forEach((x) => { cnt[x.src] = (cnt[x.src] || 0) + 1; });
-  let src = null, n = 0; Object.keys(cnt).forEach((k) => { if (cnt[k] > n) { n = cnt[k]; src = k; } });
+  // Bevorzugt MediaPipe (genauer), sonst die Quelle mit den meisten Messpunkten
+  const isMP = (k) => (k === 'n' || k === 'r' ? 1 : 0);
+  const order = Object.keys(cnt).filter((k) => cnt[k] >= 5).sort((a, b) => (isMP(b) - isMP(a)) || (cnt[b] - cnt[a]));
+  const src = order.length ? order[0] : null;
   const S = win.filter((x) => x.src === src);
   if (S.length < 5) return null;
   const rms = (a) => { const m = a.reduce((p, x) => p + x, 0) / a.length; return Math.sqrt(a.reduce((p, x) => p + (x - m) * (x - m), 0) / a.length); };
@@ -572,6 +573,9 @@ function stabilityScore(samples, tStart, tEnd) {
 const MN_MAP = { 0: 0, 5: 11, 6: 12, 7: 13, 8: 14, 9: 15, 10: 16, 11: 23, 12: 24, 13: 25, 14: 26, 15: 27, 16: 28 };
 function moveNetToLandmarks(d, flip, MN, ox, oy, dw, dh) {
   const lm = []; for (let i = 0; i < 33; i++) lm.push({ x: 0, y: 0, visibility: 0 });
+  let cs = 0, cn = 0;
+  for (let c = 5; c <= 16; c++) { cs += d[c * 3 + 2]; cn++; }
+  lm.conf = cs / cn;   // mittlere Sicherheit fuer Schultern bis Fuesse
   Object.keys(MN_MAP).forEach((c) => {
     let y = d[c * 3], x = d[c * 3 + 1];
     const sc = d[c * 3 + 2];
@@ -1204,9 +1208,8 @@ function muxMp4(opts) {
     catch (e) { mnBusy = false; return; }
     out.data().then((d) => {
       const lm = moveNetToLandmarks(d, flip, MN, ox, oy, dw, dh);
-      const res = { lm, inv: isInverted(lm), seen: bodySeen(lm), t: performance.now() };
+      const res = { src: flip ? 'mr' : 'mn', lm, inv: isInverted(lm), seen: bodySeen(lm), conf: lm.conf || 0, t: performance.now() };
       if (flip) lastMnR = res; else lastMnN = res;
-      collect(flip ? 'mr' : 'mn', lm, res.inv, res.t);
     }).catch(() => {}).finally(() => { try { out.dispose(); } catch (e) {} mnBusy = false; });
   }
 
@@ -1233,23 +1236,31 @@ function muxMp4(opts) {
         rotCx.setTransform(1, 0, 0, 1, 0, 0);
         const raw = detectOn(landmarkerRot, rotCv, now);
         const lm = raw ? raw.map((q) => ({ x: 1 - q.x, y: 1 - q.y, z: q.z, visibility: q.visibility })) : null;
-        lastRot = { lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
-        collect('r', lm, lastRot.inv, now);
+        lastRot = { src: 'r', lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
       } else {
         const lm = detectOn(landmarker, cam, now);
-        lastNorm = { lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
-        collect('n', lm, lastNorm.inv, now);
+        lastNorm = { src: 'n', lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
       }
       if (!useMn) detFlip = !detFlip;
-      // Jede Quelle (Blickwinkel) zaehlt fuer sich; ein Handstand gilt, sobald eine frische Quelle ihn sieht.
       const fresh = (r) => (r && now - r.t < 600 ? r : null);
-      const srcs = [fresh(lastNorm), fresh(lastRot), fresh(lastMnN), fresh(lastMnR)].filter(Boolean);
-      const invSrc = srcs.filter((x) => x.inv);
+      const n = fresh(lastNorm), r = fresh(lastRot), mn = fresh(lastMnN), mr = fresh(lastMnR);
+      const srcs = [n, r, mn, mr].filter(Boolean);
+      // MediaPipe zaehlt immer. MoveNet nur, wenn MediaPipe dich nicht aufrecht sieht, und nur in der
+      // Bildrichtung, in der sich MoveNet sicherer ist (es kennt oben und unten nicht).
+      const mpInv = !!((n && n.inv) || (r && r.inv));
+      const mpUpright = !mpInv && !!((n && n.seen) || (r && r.seen));
+      const invSrc = [n, r].filter((x) => x && x.inv);
+      if (!mpUpright) {
+        if (mr && mr.inv && (!mn || mr.conf >= mn.conf + 0.03)) invSrc.push(mr);
+        if (mn && mn.inv && (!mr || mn.conf >= mr.conf + 0.03)) invSrc.push(mn);
+      }
       const inv = invSrc.length > 0;
+      // Messpunkte fuer Variante/Stabilitaet nur aus akzeptierten Beobachtungen, jede nur einmal
+      invSrc.forEach((x) => { if (x.collected !== x.t) { x.collected = x.t; collect(x.src, x.lm, true, x.t); } });
       // Zeitpunkt der juengsten Beobachtung im Handstand: damit bleibt die gemessene Zeit genau
       const tObs = inv ? Math.max.apply(null, invSrc.map((x) => x.t)) : now;
       // Fuer das Skelett: bevorzugt eine Quelle, die den Handstand sieht, sonst eine, die den Koerper sieht
-      const pick = srcs.find((x) => x.inv) || srcs.find((x) => x.seen) || srcs[0] || null;
+      const pick = invSrc[0] || [n, r].find((x) => x && x.seen) || [mr, mn].filter((x) => x && x.seen).sort((a, b) => b.conf - a.conf)[0] || srcs[0] || null;
       lastLm = pick ? pick.lm : null;
       if (srcs.some((x) => x.seen)) lastSeen = now;
       return { inv, t: tObs };
@@ -1471,14 +1482,6 @@ function muxMp4(opts) {
       clip.addEventListener('click', () => exportClip(a, i + 1));
       row.append(play, clip);
       list.appendChild(row);
-    });
-    const pl = $('partList'); pl.textContent = '';
-    review.parts.forEach((p) => {
-      const row = document.createElement('div'); row.className = 'partrow';
-      const s = document.createElement('span'); s.textContent = 'Teil ' + (p.n + 1) + ' · ' + clock(p.durMs || 0) + ' · ' + mb(p.size);
-      const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Speichern';
-      b.addEventListener('click', () => savePart(p));
-      row.append(s, b); pl.appendChild(row);
     });
     $('btnBest').disabled = !top;
     $('btnBest').textContent = top ? 'Besten Versuch speichern (' + fmtSec(top.dur) + ' s)' : 'Besten Versuch speichern';
