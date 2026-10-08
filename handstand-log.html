@@ -357,6 +357,7 @@
       <button id="btnSaveAll" class="btn ghost" type="button">Ganze Session speichern</button>
       <p class="empty" style="font-size:.8rem">Nur was du hier speicherst, landet in Fotos oder Dateien. Alles andere wird beim Start der nächsten Session gelöscht.</p>
       <button id="btnHistReview" class="btn ghost" type="button">Verlauf</button>
+      <button id="btnDiag" class="btn ghost" type="button" style="min-height:44px;font-size:.9rem;color:var(--mute)">Diagnose-Datei für Claude teilen</button>
       <button id="btnNew" class="btn ghost" type="button">Neue Session</button>
     </div>
   </section>
@@ -506,6 +507,37 @@ function isInverted(lm, strict) {
   else if (wr && wr.y < sh.y - 0.15 * torso) return false;          // Haende nicht ueber den Schultern
   return true;
 }
+// ---- Entscheidung aus allen Erkennungen (reine Funktionen, damit sie mit echten Daten nachgespielt werden koennen) ----
+// Eine Beobachtung einer Quelle; streak = wie oft in Folge diese Quelle einen Handstand sieht
+function mkObs(src, lm, t, prev, strict) {
+  const inv = isInverted(lm, strict);
+  const streak = inv ? ((prev && prev.inv ? prev.streak : 0) + 1) : 0;
+  return { src, lm, inv, seen: bodySeen(lm), t, streak, firstInvT: inv ? (prev && prev.inv ? prev.firstInvT : t) : null };
+}
+// S: { norm, rot, mnN, mnR, uprightT, endT, holding, invSince }
+// 1) Sieht MediaPipe (normales Bild) dich in diesem Durchgang, entscheidet es allein.
+// 2) Sonst die Zusatzerkennungen mit strengen Regeln.
+function fuse(S, now) {
+  const n = S.norm;
+  if (n && n.t === now && n.seen) return { inv: n.inv, t: now, by: 'n', cand: n.inv ? [n] : [], pick: n, seen: true, upright: !n.inv };
+  const fresh = (x) => (x && now - x.t < 700 ? x : null);
+  const r = fresh(S.rot), mn = fresh(S.mnN), mr = fresh(S.mnR);
+  const cand = [];
+  // nicht direkt nachdem MediaPipe dich aufrecht gesehen hat, und kein neuer Versuch innerhalb von 2 s nach dem letzten
+  if (now - S.uprightT > 500 && (S.holding || now - S.endT > 2000)) {
+    if (r && r.inv && r.streak >= 2) cand.push(r);
+    if (mr && mr.inv && mr.streak >= 2 && (!mn || mr.conf >= mn.conf + 0.03)) cand.push(mr);
+    if (mn && mn.inv && mn.streak >= 2 && (!mr || mn.conf >= mr.conf + 0.03)) cand.push(mn);
+  }
+  const all = [r, mr, mn].filter(Boolean);
+  const pick = cand[0] || all.filter((x) => x.seen).sort((x, y) => (y.conf || 1) - (x.conf || 1))[0] || null;
+  const seen = all.some((x) => x.seen);
+  if (!cand.length) return { inv: false, t: now, by: '', cand, pick, seen, upright: false };
+  // Startzeit = erste Beobachtung der Serie, sonst juengste Beobachtung im Handstand
+  const t = S.invSince === null && !S.holding ? Math.min.apply(null, cand.map((x) => x.firstInvT)) : Math.max.apply(null, cand.map((x) => x.t));
+  return { inv: true, t, by: cand.map((x) => x.src).join('+'), cand, pick, seen, upright: false };
+}
+
 // ---- Variante und Stabilitaet ----
 function angleAt(a, b, c) {
   const v1x = a.x - b.x, v1y = a.y - b.y, v2x = c.x - b.x, v2y = c.y - b.y;
@@ -1004,6 +1036,7 @@ function muxMp4(opts) {
 
     attempts = []; parts = []; lastResult = null; det.reset(); flags = { counted: false, goal: false };
     sessionId = 's' + Date.now(); sessionStartedAt = Date.now(); sessionStart = performance.now();
+    diagStart();
     try { if (baked) drawFrame(performance.now()); startPart(); }
     catch (e) {
       phase = 'idle'; unlockScreen();
@@ -1115,7 +1148,8 @@ function muxMp4(opts) {
     phase = 'review';
     if (cstream) { cstream.getTracks().forEach((t) => t.stop()); cstream = null; }
     await saveMeta(true);
-    review = { id: sessionId, startedAt: sessionStartedAt, attempts: attempts.slice(), parts: partSummary(), finished: true };
+    review = { id: sessionId, startedAt: sessionStartedAt, attempts: attempts.slice(), parts: partSummary(), finished: true, diag };
+    diag = null;
     const total = attempts.reduce((s, a) => s + a.dur, 0);
     addHist({ t: sessionStartedAt, n: attempts.length, best: attempts.reduce((m, a) => Math.max(m, a.dur), 0), total,
       goalHits: attempts.filter((a) => a.goal).length, minHold: S.minHold, goal: S.goal, warm: warmRecent(),
@@ -1129,6 +1163,7 @@ function muxMp4(opts) {
 
   function onEvent(ev) {
     if (!ev) return;
+    diagPush({ e: ev.type, s: dT(ev.start), en: ev.end !== undefined ? dT(ev.end) : undefined });
     if (ev.type === 'start') { flags = { counted: false, goal: false }; beep(660, 0.1); updateStatus(); return; }
     lastEndT = performance.now();
     const now = performance.now();
@@ -1174,12 +1209,23 @@ function muxMp4(opts) {
     if (smp) { smp.src = src; smp.t = t; holdSamples.push(smp); if (holdSamples.length > 4000) holdSamples.shift(); }
   }
   let detStep = 0, detFlip = false, lastNorm = null, lastRot = null, rotCv = null, rotCx = null, lastUprightT = -1e9, lastEndT = -1e9;
-  // Eine Beobachtung einer Quelle; streak = wie oft in Folge diese Quelle einen Handstand sieht
-  function mkObs(src, lm, t, prev, strict) {
-    const inv = isInverted(lm, strict);
-    const streak = inv ? ((prev && prev.inv ? prev.streak : 0) + 1) : 0;
-    return { src, lm, inv, seen: bodySeen(lm), t, streak, firstInvT: inv ? (prev && prev.inv ? prev.firstInvT : t) : null };
+  // ---- Diagnose: was jede Erkennung gesehen hat (nur waehrend der Session, max. 25 Minuten) ----
+  const DIAG_KP = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 0];
+  let diag = null;
+  const dT = (t) => Math.round((t - sessionStart) * 10) / 10;
+  function diagStart() {
+    diag = { v: 1, app: 'Handstand Logbuch', created: new Date().toISOString(), ua: navigator.userAgent,
+      video: [cam.videoWidth, cam.videoHeight], minHold: S.minHold, kp: DIAG_KP, log: [] };
   }
+  function diagPush(e) { if (diag && phase === 'session' && diag.log.length < 400000) diag.log.push(e); }
+  function diagObs(o) {
+    if (!diag || phase !== 'session' || !o) return;
+    const k = o.lm ? [].concat.apply([], DIAG_KP.map((i) => { const q = o.lm[i] || { x: 0, y: 0, visibility: 0 }; return [Math.round(q.x * 1000), Math.round(q.y * 1000), Math.round((q.visibility || 0) * 100)]; })) : null;
+    const e = { o: o.src, t: dT(o.t), k };
+    if (o.conf !== undefined) e.c = Math.round(o.conf * 1000) / 1000;
+    diagPush(e);
+  }
+  function diagTick(now, f) { diagPush({ k_: 1, t: dT(now), i: f.inv ? 1 : 0, ft: dT(f.t), by: f.by }); }
   const collectOnce = (x) => { if (x.collected !== x.t) { x.collected = x.t; collect(x.src, x.lm, true, x.t); } };
   function detectOn(lmk, src, now) {
     const ts = Math.max(now, lastDetTs + 1); lastDetTs = ts;   // Zeitstempel muessen streng steigen
@@ -1235,6 +1281,7 @@ function muxMp4(opts) {
       const res = mkObs(flip ? 'mr' : 'mn', lm, performance.now(), flip ? lastMnR : lastMnN, true);
       res.conf = lm.conf || 0;
       if (flip) lastMnR = res; else lastMnN = res;
+      diagObs(res);
     }).catch(() => {}).finally(() => { try { out.dispose(); } catch (e) {} mnBusy = false; });
   }
 
@@ -1257,6 +1304,7 @@ function muxMp4(opts) {
       const raw = detectOn(landmarkerRot, rotCv, now);
       const lm = raw ? raw.map((q) => ({ x: 1 - q.x, y: 1 - q.y, z: q.z, visibility: q.visibility })) : null;
       lastRot = mkObs('r', lm, now, lastRot, true);
+      diagObs(lastRot);
     } else if (mnState === 'ready') {
       runMoveNet();
     }
@@ -1267,35 +1315,16 @@ function muxMp4(opts) {
     lastDet = now;
     try {
       lastNorm = mkObs('n', detectOn(landmarker, cam, now), now, lastNorm, false);
-      if (lastNorm.seen) {
-        focusMr = false;
-        lastSeen = now;
-        lastLm = lastNorm.lm;
-        if (!lastNorm.inv) lastUprightT = now;
-        else collectOnce(lastNorm);
-        return { inv: lastNorm.inv, t: now };
-      }
-      // MediaPipe sieht niemanden: Zusatzerkennungen
-      runFallback(now);
-      const fresh = (x) => (x && now - x.t < 700 ? x : null);
-      const r = fresh(lastRot), mn = fresh(lastMnN), mr = fresh(lastMnR);
-      const cand = [];
-      // nicht direkt nachdem MediaPipe dich aufrecht gesehen hat, und kein neuer Versuch innerhalb von 2 s nach dem letzten
-      if (now - lastUprightT > 500 && (det.holding || now - lastEndT > 2000)) {
-        if (r && r.inv && r.streak >= 2) cand.push(r);
-        if (mr && mr.inv && mr.streak >= 2 && (!mn || mr.conf >= mn.conf + 0.03)) cand.push(mr);
-        if (mn && mn.inv && mn.streak >= 2 && (!mr || mn.conf >= mr.conf + 0.03)) cand.push(mn);
-      }
-      const all = [r, mr, mn].filter(Boolean);
-      if (all.some((x) => x.seen)) lastSeen = now;
-      const pick = cand[0] || all.filter((x) => x.seen).sort((x, y) => (y.conf || 1) - (x.conf || 1))[0] || null;
-      lastLm = pick ? pick.lm : null;
-      focusMr = (det.holding || det.invSince !== null) && cand.some((x) => x.src === 'mr');
-      if (!cand.length) { focusMr = false; return { inv: false, t: now }; }
-      cand.forEach(collectOnce);
-      // Startzeit = erste Beobachtung der Serie, sonst juengste Beobachtung im Handstand
-      const t = det.invSince === null && !det.holding ? Math.min.apply(null, cand.map((x) => x.firstInvT)) : Math.max.apply(null, cand.map((x) => x.t));
-      return { inv: true, t };
+      diagObs(lastNorm);
+      if (!lastNorm.seen) runFallback(now);       // MediaPipe sieht niemanden: Zusatzerkennungen
+      const f = fuse({ norm: lastNorm, rot: lastRot, mnN: lastMnN, mnR: lastMnR, uprightT: lastUprightT, endT: lastEndT, holding: det.holding, invSince: det.invSince }, now);
+      if (f.upright) lastUprightT = now;
+      if (f.seen) lastSeen = now;
+      lastLm = f.pick ? f.pick.lm : null;
+      focusMr = !lastNorm.seen && (det.holding || det.invSince !== null) && f.cand.some((x) => x.src === 'mr');
+      f.cand.forEach(collectOnce);
+      diagTick(now, f);
+      return { inv: f.inv, t: f.t };
     } catch (e) { return null; }
   }
 
@@ -1518,6 +1547,7 @@ function muxMp4(opts) {
     $('btnBest').disabled = !top;
     $('btnBest').textContent = top ? 'Besten Versuch speichern (' + fmtSec(top.dur) + ' s)' : 'Besten Versuch speichern';
     $('btnSaveAll').disabled = !review.parts.length;
+    $('btnDiag').hidden = !review.diag;
   }
 
   async function loadPart(n) {
@@ -2152,6 +2182,13 @@ function muxMp4(opts) {
   });
   $('btnBest').addEventListener('click', () => { const t = topAttempt(); if (t) exportClip(t, review.attempts.indexOf(t) + 1); });
   $('btnSaveAll').addEventListener('click', saveAll);
+  $('btnDiag').addEventListener('click', async () => {
+    if (!review || !review.diag) { toast('Für diese Session gibt es keine Diagnose-Datei.', null, null, 3000); return; }
+    const d = Object.assign({}, review.diag, { attempts: review.attempts.map((a) => ({ dur: a.dur, at: a.at, variant: a.variant || null })) });
+    const file = new File([JSON.stringify(d)], 'handstand-diagnose-' + stampOf() + '.json', { type: 'application/json' });
+    window.__diagFile = file;
+    await shareOrDownload([file]);
+  });
   $('btnNew').addEventListener('click', newSession);
   $('best').addEventListener('click', openHistory);
   $('btnHistIntro').addEventListener('click', openHistory);
