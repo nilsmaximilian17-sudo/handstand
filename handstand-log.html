@@ -137,6 +137,9 @@
     padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   #review > *, #history > *, #warmup > *, #challenge > * { flex-shrink: 0; }
+  #review::after, #history::after, #warmup::after, #challenge::after { content: ''; display: block; flex: 0 0 auto;
+    height: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .btn { white-space: normal; line-height: 1.2; }
   h2 { font-family: var(--disp); text-transform: uppercase; font-size: 2rem; margin: 0; line-height: 1; }
   #player { width: 100%; max-height: 42vh; background: #000; border-radius: 12px; flex: 0 0 auto; }
   .empty { color: var(--mute); line-height: 1.5; margin: 0; font-size: .92rem; }
@@ -474,7 +477,9 @@ function bodySeen(lm) {
 }
 // Funktioniert von der Seite, von vorne und von hinten: es zaehlt nur, was oben und unten ist.
 // Alle Schwellen sind relativ zur Rumpflaenge, damit es egal ist, wie weit das Handy weg steht.
-function isInverted(lm) {
+// strict = true fuer die Zusatzerkennungen (gedrehtes Bild, MoveNet): dort sind Haende am Boden Pflicht.
+// Fuer MediaPipe auf dem normalen Bild gilt die urspruengliche Regel, die im Training gut funktioniert hat.
+function isInverted(lm, strict) {
   if (!lm) return false;
   const sh = pairPt(lm, 11, 12, 0.35, 0.55), hip = pairPt(lm, 23, 24, 0.35, 0.55);
   if (!sh || !hip) return false;
@@ -490,7 +495,8 @@ function isInverted(lm) {
   // Pflicht: Haende klar unter den Schultern (am Boden). Schuetzt vor Fehldeutungen, bei denen ein stehender
   // Mensch falsch herum erkannt wird (dann haengen die "Haende" auf Hueftehoehe).
   const wr = pairPt(lm, 15, 16, 0.3, 0.45);
-  if (!wr || !(wr.y > sh.y + 0.3 * torso)) return false;
+  if (strict) { if (!wr || !(wr.y > sh.y + 0.3 * torso)) return false; }
+  else if (wr && wr.y < sh.y - 0.15 * torso) return false;          // Haende nicht ueber den Schultern
   return true;
 }
 // ---- Variante und Stabilitaet ----
@@ -717,7 +723,7 @@ function muxMp4(opts) {
   let landmarker = null, landmarkerRot = null, poseState = 'idle';   // idle | loading | ready | failed
   let lastDet = 0, lastDraw = 0, lastResult = null, flags = { counted: false, goal: false };
   let actx = null, clipBusy = false, stopArmed = false, newArmed = false, toastTimer = null;
-  const det = new HoldDetector(500, 1000);
+  const det = new HoldDetector(500, 700);
   const useAuto = () => S.mode === 'auto' && poseState === 'ready';
 
   // ---- Hinweise (Toast) ----
@@ -1159,7 +1165,14 @@ function muxMp4(opts) {
     const smp = holdSample(lm, cam.videoWidth, cam.videoHeight);
     if (smp) { smp.src = src; smp.t = t; holdSamples.push(smp); if (holdSamples.length > 4000) holdSamples.shift(); }
   }
-  let detStep = 0, detFlip = false, lastNorm = null, lastRot = null, rotCv = null, rotCx = null;
+  let detStep = 0, detFlip = false, lastNorm = null, lastRot = null, rotCv = null, rotCx = null, lastUprightT = -1e9;
+  // Eine Beobachtung einer Quelle; streak = wie oft in Folge diese Quelle einen Handstand sieht
+  function mkObs(src, lm, t, prev, strict) {
+    const inv = isInverted(lm, strict);
+    const streak = inv ? ((prev && prev.inv ? prev.streak : 0) + 1) : 0;
+    return { src, lm, inv, seen: bodySeen(lm), t, streak, firstInvT: inv ? (prev && prev.inv ? prev.firstInvT : t) : null };
+  }
+  const collectOnce = (x) => { if (x.collected !== x.t) { x.collected = x.t; collect(x.src, x.lm, true, x.t); } };
   function detectOn(lmk, src, now) {
     const ts = Math.max(now, lastDetTs + 1); lastDetTs = ts;   // Zeitstempel muessen streng steigen
     const res = lmk.detectForVideo(src, ts);
@@ -1208,62 +1221,68 @@ function muxMp4(opts) {
     catch (e) { mnBusy = false; return; }
     out.data().then((d) => {
       const lm = moveNetToLandmarks(d, flip, MN, ox, oy, dw, dh);
-      const res = { src: flip ? 'mr' : 'mn', lm, inv: isInverted(lm), seen: bodySeen(lm), conf: lm.conf || 0, t: performance.now() };
+      const res = mkObs(flip ? 'mr' : 'mn', lm, performance.now(), flip ? lastMnR : lastMnN, true);
+      res.conf = lm.conf || 0;
       if (flip) lastMnR = res; else lastMnN = res;
     }).catch(() => {}).finally(() => { try { out.dispose(); } catch (e) {} mnBusy = false; });
   }
 
-  // Abwechselnd: normales Bild und um 180 Grad gedrehtes Bild. Die Erkennung arbeitet mit aufrechten
-  // Menschen am besten, im gedrehten Bild steht man im Handstand "aufrecht".
+  // Erkennung pro Durchgang:
+  // 1) MediaPipe auf dem normalen Bild laeuft immer. Sieht es dich, entscheidet es allein (so lief es von Anfang an gut).
+  // 2) Nur wenn es dich nicht findet (z. B. von hinten), laufen im Wechsel die Zusatzerkennungen:
+  //    MediaPipe auf dem gedrehten Bild und MoveNet. Fuer sie gelten strenge Regeln (Haende am Boden, zweimal in Folge,
+  //    MoveNet nur in der sichereren Bildrichtung, nicht direkt nachdem MediaPipe dich aufrecht gesehen hat).
+  function runFallback(now) {
+    detStep = (detStep + 1) % 2;
+    if (detStep === 0 && landmarkerRot) {
+      const vw = cam.videoWidth, vh = cam.videoHeight, k = Math.min(1, 640 / Math.max(vw, vh));
+      const w = Math.round(vw * k), h = Math.round(vh * k);
+      if (!rotCv) { rotCv = document.createElement('canvas'); rotCx = rotCv.getContext('2d'); }
+      if (rotCv.width !== w || rotCv.height !== h) { rotCv.width = w; rotCv.height = h; }
+      rotCx.setTransform(-1, 0, 0, -1, w, h);
+      rotCx.drawImage(cam, 0, 0, w, h);
+      rotCx.setTransform(1, 0, 0, 1, 0, 0);
+      const raw = detectOn(landmarkerRot, rotCv, now);
+      const lm = raw ? raw.map((q) => ({ x: 1 - q.x, y: 1 - q.y, z: q.z, visibility: q.visibility })) : null;
+      lastRot = mkObs('r', lm, now, lastRot, true);
+    } else if (mnState === 'ready') {
+      runMoveNet();
+    } else if (landmarkerRot) {
+      detStep = 1;
+    }
+  }
+
   function runDetection(now, every) {
     if (!useAuto() || cam.readyState < 2 || now - lastDet < every) return null;
     lastDet = now;
     try {
-      // Sieht MediaPipe niemanden (z. B. von hinten), bekommt MoveNet 2 von 3 Durchgaengen, sonst 1 von 3.
-      const mpSees = (x) => x && x.seen && now - x.t < 1000;
-      const mpBlind = !mpSees(lastNorm) && !mpSees(lastRot);
-      detStep = (detStep + 1) % 3;
-      const useMn = mnState === 'ready' && (mpBlind ? detStep !== 0 : detStep === 2);
-      if (useMn) {
-        runMoveNet();
-      } else if (landmarkerRot && detFlip) {
-        const vw = cam.videoWidth, vh = cam.videoHeight, k = Math.min(1, 640 / Math.max(vw, vh));
-        const w = Math.round(vw * k), h = Math.round(vh * k);
-        if (!rotCv) { rotCv = document.createElement('canvas'); rotCx = rotCv.getContext('2d'); }
-        if (rotCv.width !== w || rotCv.height !== h) { rotCv.width = w; rotCv.height = h; }
-        rotCx.setTransform(-1, 0, 0, -1, w, h);
-        rotCx.drawImage(cam, 0, 0, w, h);
-        rotCx.setTransform(1, 0, 0, 1, 0, 0);
-        const raw = detectOn(landmarkerRot, rotCv, now);
-        const lm = raw ? raw.map((q) => ({ x: 1 - q.x, y: 1 - q.y, z: q.z, visibility: q.visibility })) : null;
-        lastRot = { src: 'r', lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
-      } else {
-        const lm = detectOn(landmarker, cam, now);
-        lastNorm = { src: 'n', lm, inv: isInverted(lm), seen: bodySeen(lm), t: now };
+      lastNorm = mkObs('n', detectOn(landmarker, cam, now), now, lastNorm, false);
+      if (lastNorm.seen) {
+        lastSeen = now;
+        lastLm = lastNorm.lm;
+        if (!lastNorm.inv) lastUprightT = now;
+        else collectOnce(lastNorm);
+        return { inv: lastNorm.inv, t: now };
       }
-      if (!useMn) detFlip = !detFlip;
-      const fresh = (r) => (r && now - r.t < 600 ? r : null);
-      const n = fresh(lastNorm), r = fresh(lastRot), mn = fresh(lastMnN), mr = fresh(lastMnR);
-      const srcs = [n, r, mn, mr].filter(Boolean);
-      // MediaPipe zaehlt immer. MoveNet nur, wenn MediaPipe dich nicht aufrecht sieht, und nur in der
-      // Bildrichtung, in der sich MoveNet sicherer ist (es kennt oben und unten nicht).
-      const mpInv = !!((n && n.inv) || (r && r.inv));
-      const mpUpright = !mpInv && !!((n && n.seen) || (r && r.seen));
-      const invSrc = [n, r].filter((x) => x && x.inv);
-      if (!mpUpright) {
-        if (mr && mr.inv && (!mn || mr.conf >= mn.conf + 0.03)) invSrc.push(mr);
-        if (mn && mn.inv && (!mr || mn.conf >= mr.conf + 0.03)) invSrc.push(mn);
+      // MediaPipe sieht niemanden: Zusatzerkennungen
+      runFallback(now);
+      const fresh = (x) => (x && now - x.t < 700 ? x : null);
+      const r = fresh(lastRot), mn = fresh(lastMnN), mr = fresh(lastMnR);
+      const cand = [];
+      if (now - lastUprightT > 700) {
+        if (r && r.inv && r.streak >= 2) cand.push(r);
+        if (mr && mr.inv && mr.streak >= 2 && (!mn || mr.conf >= mn.conf + 0.03)) cand.push(mr);
+        if (mn && mn.inv && mn.streak >= 2 && (!mr || mn.conf >= mr.conf + 0.03)) cand.push(mn);
       }
-      const inv = invSrc.length > 0;
-      // Messpunkte fuer Variante/Stabilitaet nur aus akzeptierten Beobachtungen, jede nur einmal
-      invSrc.forEach((x) => { if (x.collected !== x.t) { x.collected = x.t; collect(x.src, x.lm, true, x.t); } });
-      // Zeitpunkt der juengsten Beobachtung im Handstand: damit bleibt die gemessene Zeit genau
-      const tObs = inv ? Math.max.apply(null, invSrc.map((x) => x.t)) : now;
-      // Fuer das Skelett: bevorzugt eine Quelle, die den Handstand sieht, sonst eine, die den Koerper sieht
-      const pick = invSrc[0] || [n, r].find((x) => x && x.seen) || [mr, mn].filter((x) => x && x.seen).sort((a, b) => b.conf - a.conf)[0] || srcs[0] || null;
+      const all = [r, mr, mn].filter(Boolean);
+      if (all.some((x) => x.seen)) lastSeen = now;
+      const pick = cand[0] || all.filter((x) => x.seen).sort((x, y) => (y.conf || 1) - (x.conf || 1))[0] || null;
       lastLm = pick ? pick.lm : null;
-      if (srcs.some((x) => x.seen)) lastSeen = now;
-      return { inv, t: tObs };
+      if (!cand.length) return { inv: false, t: now };
+      cand.forEach(collectOnce);
+      // Startzeit = erste Beobachtung der Serie, sonst juengste Beobachtung im Handstand
+      const t = det.invSince === null && !det.holding ? Math.min.apply(null, cand.map((x) => x.firstInvT)) : Math.max.apply(null, cand.map((x) => x.t));
+      return { inv: true, t };
     } catch (e) { return null; }
   }
 
@@ -1462,7 +1481,7 @@ function muxMp4(opts) {
     const A = review.attempts, total = A.reduce((s, a) => s + a.dur, 0), top = topAttempt();
     $('sumLine').textContent = A.length
       ? nVers(A.length) + ' · Bester ' + fmtSec(top.dur) + ' s · Gesamt ' + fmtSec(total) + ' s' + (avgStab(A) !== null ? ' · Ø Stabilität ' + avgStab(A) : '') + ' · ' + review.parts.length + ' Videoteile'
-      : 'Kein Handstand erkannt. Die Videoteile kannst du trotzdem speichern. Tipp: Handy hochkant, ganzer Körper im Bild, gutes Licht.';
+      : 'Kein Handstand erkannt. Das Video kannst du trotzdem speichern. Tipp: Handy hochkant, ganzer Körper im Bild, gutes Licht.';
     const list = $('list'); list.textContent = '';
     A.forEach((a, i) => {
       const row = document.createElement('div');
@@ -1628,7 +1647,7 @@ function muxMp4(opts) {
 
   async function newSession() {
     if (!newArmed) {
-      newArmed = true; $('btnNew').textContent = 'Wirklich? Nicht gespeicherte Videos gehen verloren';
+      newArmed = true; $('btnNew').textContent = 'Nochmal tippen: Video wird gelöscht';
       setTimeout(() => { newArmed = false; $('btnNew').textContent = 'Neue Session'; }, 4000);
       return;
     }
