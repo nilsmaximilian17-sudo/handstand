@@ -481,7 +481,8 @@ function bodySeen(lm) {
 // Alle Schwellen sind relativ zur Rumpflaenge, damit es egal ist, wie weit das Handy weg steht.
 // strict = true fuer die Zusatzerkennungen (gedrehtes Bild, MoveNet): dort sind Haende am Boden Pflicht.
 // Fuer MediaPipe auf dem normalen Bild gilt die urspruengliche Regel, die im Training gut funktioniert hat.
-function isInverted(lm, strict) {
+// cont = true, solange schon ein Handstand laeuft: dann reicht "Fuesse noch ueber der Huefte" (Hysterese).
+function isInverted(lm, strict, cont) {
   if (!lm) return false;
   const sh = pairPt(lm, 11, 12, 0.35, 0.55), hip = pairPt(lm, 23, 24, 0.35, 0.55);
   if (!sh || !hip) return false;
@@ -490,10 +491,15 @@ function isInverted(lm, strict) {
   if (!(sh.y - hip.y > 0.5 * torso)) return false;                 // Hueften klar ueber den Schultern
   const leg = pairPt(lm, 27, 28, 0.3, 0.5) || pairPt(lm, 25, 26, 0.3, 0.5);
   const feet = pairPt(lm, 27, 28, 0.3, 0.5), knees = pairPt(lm, 25, 26, 0.3, 0.5);
-  const legsUp = !!leg && leg.y < hip.y - 0.35 * torso;                          // Beine klar ueber den Hueften
-  // Gehockt: Fuesse klar ueber den Schultern (also nicht am Boden), Knie ebenfalls oben
-  const tucked = !!feet && feet.y < sh.y - 0.5 * torso && (!knees || knees.y < sh.y - 0.5 * torso);
-  if (!legsUp && !tucked) return false;
+  if (cont) {
+    // Weiterlaufen: Beine noch ueber der Huefte (Fuesse sind oft oben aus dem Bild und wirken dann zu tief)
+    if (!leg || !(leg.y < hip.y - 0.1 * torso)) return false;
+  } else {
+    // Start: Beine klar ueber der Huefte und gestreckt (Fuesse ueber den Knien). Beim Herausdrehen nach einem
+    // Ueberdrehen haengen die Fuesse unter den Knien, das zaehlt nicht als neuer Handstand.
+    if (!leg || !(leg.y < hip.y - 0.35 * torso)) return false;
+    if (feet && knees && !(feet.y <= knees.y + 0.02 * torso)) return false;
+  }
   // Pflicht: Haende klar unter den Schultern (am Boden). Schuetzt vor Fehldeutungen, bei denen ein stehender
   // Mensch falsch herum erkannt wird (dann haengen die "Haende" auf Hueftehoehe).
   const wr = pairPt(lm, 15, 16, 0.3, 0.45);
@@ -509,8 +515,8 @@ function isInverted(lm, strict) {
 }
 // ---- Entscheidung aus allen Erkennungen (reine Funktionen, damit sie mit echten Daten nachgespielt werden koennen) ----
 // Eine Beobachtung einer Quelle; streak = wie oft in Folge diese Quelle einen Handstand sieht
-function mkObs(src, lm, t, prev, strict) {
-  const inv = isInverted(lm, strict);
+function mkObs(src, lm, t, prev, strict, cont) {
+  const inv = isInverted(lm, strict, cont);
   const streak = inv ? ((prev && prev.inv ? prev.streak : 0) + 1) : 0;
   return { src, lm, inv, seen: bodySeen(lm), t, streak, firstInvT: inv ? (prev && prev.inv ? prev.firstInvT : t) : null };
 }
@@ -1278,7 +1284,7 @@ function muxMp4(opts) {
     catch (e) { mnBusy = false; return; }
     out.data().then((d) => {
       const lm = moveNetToLandmarks(d, flip, MN, ox, oy, dw, dh);
-      const res = mkObs(flip ? 'mr' : 'mn', lm, performance.now(), flip ? lastMnR : lastMnN, true);
+      const res = mkObs(flip ? 'mr' : 'mn', lm, performance.now(), flip ? lastMnR : lastMnN, true, det.holding);
       res.conf = lm.conf || 0;
       if (flip) lastMnR = res; else lastMnN = res;
       diagObs(res);
@@ -1303,7 +1309,7 @@ function muxMp4(opts) {
       rotCx.setTransform(1, 0, 0, 1, 0, 0);
       const raw = detectOn(landmarkerRot, rotCv, now);
       const lm = raw ? raw.map((q) => ({ x: 1 - q.x, y: 1 - q.y, z: q.z, visibility: q.visibility })) : null;
-      lastRot = mkObs('r', lm, now, lastRot, true);
+      lastRot = mkObs('r', lm, now, lastRot, true, det.holding);
       diagObs(lastRot);
     } else if (mnState === 'ready') {
       runMoveNet();
@@ -1314,7 +1320,7 @@ function muxMp4(opts) {
     if (!useAuto() || cam.readyState < 2 || now - lastDet < every) return null;
     lastDet = now;
     try {
-      lastNorm = mkObs('n', detectOn(landmarker, cam, now), now, lastNorm, false);
+      lastNorm = mkObs('n', detectOn(landmarker, cam, now), now, lastNorm, false, det.holding);
       diagObs(lastNorm);
       if (!lastNorm.seen) runFallback(now);       // MediaPipe sieht niemanden: Zusatzerkennungen
       const f = fuse({ norm: lastNorm, rot: lastRot, mnN: lastMnN, mnR: lastMnR, uprightT: lastUprightT, endT: lastEndT, holding: det.holding, invSince: det.invSince }, now);
