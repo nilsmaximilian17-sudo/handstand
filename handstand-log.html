@@ -147,6 +147,11 @@
   .xbtn svg { width: 30px; height: 30px; padding: 8px; box-sizing: border-box; border-radius: 50%; background: rgba(255,255,255,.12); }
   .xbtn:active svg { background: rgba(255,255,255,.25); }
   h2 { font-family: var(--disp); text-transform: uppercase; font-size: 2rem; margin: 0; line-height: 1; }
+  #partNav { display: flex; align-items: center; gap: 10px; margin-top: -4px; }
+  #partNav[hidden] { display: none; }
+  #partNav .btn { flex: 0 0 auto; width: 52px; min-height: 40px; padding: 0; font-size: 1.5rem; line-height: 1; }
+  #partNav .btn:disabled { opacity: .3; }
+  #partLbl { flex: 1 1 auto; text-align: center; font-size: .9rem; color: var(--mute); }
   #player { width: 100%; max-height: 42vh; background: #000; border-radius: 12px; flex: 0 0 auto; }
   .empty { color: var(--mute); line-height: 1.5; margin: 0; font-size: .92rem; }
   #list, #partList, #histList { display: flex; flex-direction: column; gap: 8px; }
@@ -360,6 +365,11 @@
     <h2>Deine Session</h2>
     <p id="sumLine" class="empty"></p>
     <video id="player" controls playsinline></video>
+    <div id="partNav" hidden>
+      <button id="partPrev" class="btn ghost" type="button" aria-label="Voriger Teil">‹</button>
+      <span id="partLbl"></span>
+      <button id="partNext" class="btn ghost" type="button" aria-label="Nächster Teil">›</button>
+    </div>
     <div id="list"></div>
     <div class="actions">
       <button id="btnBest" class="btn primary" type="button">Besten Versuch speichern</button>
@@ -841,7 +851,14 @@ function muxMp4(opts) {
 
   // ---- Kamera ----
   function stopCamera() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } }
-  async function startCamera() {
+  // Nie zwei Kamera-Starts gleichzeitig (z. B. Rueckkehr in die App und "Weiter" kurz hintereinander):
+  // auf dem iPhone wuerde der zweite Start den ersten abwuergen.
+  let camStarting = null;
+  function startCamera() {
+    if (!camStarting) camStarting = startCameraNow().finally(() => { camStarting = null; });
+    return camStarting;
+  }
+  async function startCameraNow() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { const e = new Error('nomedia'); e.name = 'NoMedia'; throw e; }
     stopCamera();
     stream = await navigator.mediaDevices.getUserMedia({
@@ -1174,9 +1191,11 @@ function muxMp4(opts) {
     resuming = true; $('btnPause').disabled = true;
     try {
       // iOS beendet die Kamera oft, wenn man zwischendurch eine andere App benutzt: dann neu starten
-      if (!stream || !stream.active || stream.getVideoTracks().every((t) => t.readyState === 'ended')) {
+      if (camStarting) { try { await camStarting; } catch (e) {} }
+      if (!stream || !stream.active || stream.getVideoTracks().some((t) => t.readyState === 'ended' || t.muted)) {
         try { await startCamera(); } catch (e) { toast('Die Kamera konnte nicht wieder gestartet werden. Tippe nochmal auf „Weiter“.', null, null, 4000); return; }
       }
+      if (cam.paused) { try { await cam.play(); } catch (e) {} }
       if (phase !== 'paused') return;
       pausedTotal += performance.now() - pausedAt;
       det.reset(); lastUprightT = -1e9; lastEndT = performance.now(); lastResult = null; flags = { counted: false, goal: false };
@@ -1577,6 +1596,7 @@ function muxMp4(opts) {
     $('review').hidden = false;
     loadedPart = -1;
     renderReview();
+    $('partNav').hidden = true;
     const first = review.attempts.length ? review.attempts[0].part : (review.parts[0] && review.parts[0].n);
     if (first !== undefined) loadPart(first).catch(() => {});
   }
@@ -1626,7 +1646,30 @@ function muxMp4(opts) {
     await waitEvent(player, 'loadedmetadata', 15000);
     await fixDuration(player);
     loadedPart = n;
+    renderPartNav();
   }
+  // Mehrere Videoteile (alle 5 Minuten oder nach einer Pause): Teil-Anzeige mit vor/zurueck,
+  // und am Ende eines Teils laeuft das Video automatisch im naechsten weiter.
+  const partIdx = () => (review ? review.parts.findIndex((x) => x.n === loadedPart) : -1);
+  function renderPartNav() {
+    const P = review ? review.parts : [], i = partIdx();
+    $('partNav').hidden = P.length < 2;
+    if (P.length < 2) return;
+    $('partLbl').textContent = 'Videoteil ' + (i + 1) + ' von ' + P.length;
+    $('partPrev').disabled = i <= 0;
+    $('partNext').disabled = i < 0 || i >= P.length - 1;
+  }
+  async function gotoPart(step, play) {
+    const P = review ? review.parts : [], i = partIdx();
+    const q = P[i + step];
+    if (!q) return;
+    stopAt = null;
+    try { await loadPart(q.n); player.currentTime = 0; if (play) await player.play(); }
+    catch (e) { toast('Dieser Videoteil konnte nicht geladen werden.', null, null, 3000); }
+  }
+  $('partPrev').addEventListener('click', () => gotoPart(-1, false));
+  $('partNext').addEventListener('click', () => gotoPart(1, false));
+  player.addEventListener('ended', () => { if (review && stopAt === null) gotoPart(1, true); });
 
   async function playAttempt(a) {
     try {
