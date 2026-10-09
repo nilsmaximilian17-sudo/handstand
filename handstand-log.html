@@ -189,6 +189,7 @@
   .cal .d[data-l="4"] { background: rgb(123,216,143); color: #101315; font-weight: 700; }
   .cal .d.today { box-shadow: inset 0 0 0 2px var(--fg); }
   .cal .d.sel { outline: 2px solid var(--goal); outline-offset: 1px; }
+  #running.paused #btnPause { background: var(--fg); color: #101315; border-color: var(--fg); }
   .rowbtn { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .rowbtn3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .rowbtn3 .btn { padding: 0 8px; font-size: .92rem; }
@@ -348,7 +349,10 @@
         <div id="stGoalWrap"><b id="stGoal">0</b><span>Ziel</span></div>
       </div>
       <p id="hint"></p>
-      <button id="btnStop" class="btn stop" type="button" style="width:100%;margin-top:12px">Session beenden</button>
+      <div class="rowbtn" style="margin-top:12px">
+        <button id="btnPause" class="btn ghost" type="button">Pause</button>
+        <button id="btnStop" class="btn stop" type="button">Session beenden</button>
+      </div>
     </div>
   </section>
 
@@ -764,7 +768,7 @@ function muxMp4(opts) {
   const addHist = (rec) => { const h = loadHist(); h.push(rec); try { localStorage.setItem(HKEY, JSON.stringify(h.slice(-200))); } catch (e) {} };
 
   // ---- Zustand ----
-  let phase = 'intro';              // intro | idle | session | stopping | review
+  let phase = 'intro';              // intro | idle | session | paused | stopping | review
   let stream = null, wakeLock = null, recStream = null, canvas = null, g2d = null, cstream = null, baked = false;
   let parts = [], curPart = null, sessionId = null, sessionStart = 0, sessionStartedAt = 0, attempts = [];
   let review = null, loadedPart = -1, partUrl = null, stopAt = null;
@@ -891,9 +895,10 @@ function muxMp4(opts) {
       else if (poseState === 'loading') txt = 'Erkennung lädt …';
       else if (poseState === 'failed') txt = 'Erkennung fehlt, Manuell';
     } else if (phase === 'session') { rec_ = true; txt = det.holding ? 'Handstand!' : 'Aufnahme'; }
+    else if (phase === 'paused') txt = 'Pause';
     else if (phase === 'stopping') txt = 'Speichere …';
     $('statusText').textContent = txt;
-    $('status').hidden = !(phase === 'session' || phase === 'stopping');
+    $('status').hidden = !(phase === 'session' || phase === 'paused' || phase === 'stopping');
     $('dot').hidden = !rec_;
     $('dot').classList.toggle('pulse', rec_);
     $('best').textContent = 'Best ' + (best ? fmtSec(best) + ' s' : '–');
@@ -914,7 +919,7 @@ function muxMp4(opts) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
     resetScroll();
-    if (phase === 'session' || phase === 'idle') {
+    if (phase === 'session' || phase === 'idle' || phase === 'paused') {
       if (phase === 'session') lockScreen();
       // iOS beendet die Kamera manchmal im Hintergrund: dann neu starten
       if (!stream || !stream.active || stream.getVideoTracks().every((t) => t.readyState === 'ended')) startCamera().catch(() => {});
@@ -1044,7 +1049,7 @@ function muxMp4(opts) {
     } catch (e) { recStream = stream; baked = false; encCodec = null; }
 
     attempts = []; parts = []; lastResult = null; det.reset(); flags = { counted: false, goal: false };
-    sessionId = 's' + Date.now(); sessionStartedAt = Date.now(); sessionStart = performance.now();
+    sessionId = 's' + Date.now(); sessionStartedAt = Date.now(); sessionStart = performance.now(); pausedAt = 0; pausedTotal = 0;
     diagStart();
     try { if (baked) drawFrame(performance.now()); startPart(); }
     catch (e) {
@@ -1055,6 +1060,7 @@ function muxMp4(opts) {
     phase = 'session';
     $('setup').hidden = true; $('running').hidden = false;
     $('btnStop').disabled = false; $('btnStop').textContent = 'Session beenden';
+    $('btnPause').disabled = false; $('btnPause').textContent = 'Pause';
     $('stGoalWrap').hidden = !(S.goal > 0);
     renderStats();
     $('hint').textContent = (useAuto() ? 'Automatische Erkennung läuft. ' : 'Manuell: Tippe auf die Zeit zum Starten und Stoppen. ')
@@ -1142,12 +1148,58 @@ function muxMp4(opts) {
     try { await idb.put('sessions', sessionId, m); } catch (e) {}
   }
 
+  // ---- Session: Pause ----
+  // Pause: laufender Versuch wird abgeschlossen, das Video bis hier sicher abgelegt, Erkennung und Aufnahme ruhen.
+  // Der Bildschirm darf ausgehen, du kannst das Handy normal benutzen. "Weiter" startet einen neuen Videoteil.
+  let pausedAt = 0, pausedTotal = 0;
+  function pauseSession() {
+    if (phase !== 'session') return;
+    const now = performance.now();
+    if (det.holding) onEvent(det.forceEnd(now));
+    phase = 'paused'; pausedAt = now;
+    det.reset(); holdSamples = []; lastNorm = null; lastRot = null;
+    if (curPart) stopPart(curPart);
+    unlockScreen();
+    stopArmed = false; $('btnStop').textContent = 'Session beenden';
+    $('btnPause').textContent = 'Weiter';
+    $('running').classList.add('paused');
+    $('timerLabel').textContent = 'Pause'; setTimer('II', 'short'); setBar(0, '');
+    $('hint').textContent = 'Pausiert: Es wird nichts aufgenommen und nichts gezählt. Du kannst das Handy normal benutzen. Tippe auf „Weiter“, wenn es weitergeht.';
+    clearSkeleton(); $('bodyNote').textContent = ''; $('bodyNote').className = '';
+    updateStatus();
+  }
+  let resuming = false;
+  async function resumeSession() {
+    if (phase !== 'paused' || resuming) return;
+    resuming = true; $('btnPause').disabled = true;
+    try {
+      // iOS beendet die Kamera oft, wenn man zwischendurch eine andere App benutzt: dann neu starten
+      if (!stream || !stream.active || stream.getVideoTracks().every((t) => t.readyState === 'ended')) {
+        try { await startCamera(); } catch (e) { toast('Die Kamera konnte nicht wieder gestartet werden. Tippe nochmal auf „Weiter“.', null, null, 4000); return; }
+      }
+      if (phase !== 'paused') return;
+      pausedTotal += performance.now() - pausedAt;
+      det.reset(); lastUprightT = -1e9; lastEndT = performance.now(); lastResult = null; flags = { counted: false, goal: false };
+      phase = 'session';
+      try { if (baked) drawFrame(performance.now()); startPart(); }
+      catch (e) { phase = 'paused'; pausedAt = performance.now(); toast('Die Aufnahme konnte nicht weiterlaufen. Tippe nochmal auf „Weiter“.', null, null, 4000); return; }
+      lockScreen();
+      $('btnPause').textContent = 'Pause';
+      $('running').classList.remove('paused');
+      $('timerLabel').textContent = ''; setTimer('0,0', 'short');
+      $('hint').textContent = (useAuto() ? 'Automatische Erkennung läuft. ' : 'Manuell: Tippe auf die Zeit zum Starten und Stoppen. ')
+        + (baked ? 'Die Haltezeit wird ins Video eingeblendet.' : 'Dieses Gerät kann die Zeit nicht ins Video einblenden.');
+      updateStatus();
+    } finally { resuming = false; $('btnPause').disabled = false; }
+  }
+
   // ---- Session: Ende ----
   function stopSession() {
-    if (phase !== 'session') return;
+    if (phase !== 'session' && phase !== 'paused') return;
+    if (phase === 'paused') { pausedTotal += performance.now() - pausedAt; $('running').classList.remove('paused'); }
     if (det.holding) onEvent(det.forceEnd(performance.now()));
     phase = 'stopping'; unlockScreen(); updateStatus();
-    $('hint').textContent = 'Aufnahme wird gespeichert …'; $('btnStop').disabled = true;
+    $('hint').textContent = 'Aufnahme wird gespeichert …'; $('btnStop').disabled = true; $('btnPause').disabled = true;
     parts.forEach((p) => stopPart(p));
     if (parts.every((x) => x.stored)) finishSession();
   }
@@ -1163,7 +1215,7 @@ function muxMp4(opts) {
     addHist({ t: sessionStartedAt, n: attempts.length, best: attempts.reduce((m, a) => Math.max(m, a.dur), 0), total,
       goalHits: attempts.filter((a) => a.goal).length, minHold: S.minHold, goal: S.goal, warm: warmRecent(),
       variants: attempts.reduce((m, a) => { if (a.variant) m[a.variant] = (m[a.variant] || 0) + 1; return m; }, {}),
-      dur: Math.round((performance.now() - sessionStart) / 1000) });
+      dur: Math.round((performance.now() - sessionStart - pausedTotal) / 1000) });
     showReview();
   }
 
@@ -1182,7 +1234,7 @@ function muxMp4(opts) {
       const goal = S.goal > 0 && dur >= S.goal;
       const W = holdSamples.filter((x) => x.t >= ev.start - 50 && x.t <= ev.end + 50);
       const variant = variantVote(W);
-      attempts.push({ part: p.n, vStart: (ev.start - p.start) / 1000, vEnd: (ev.end - p.start) / 1000, dur, goal, at: (ev.start - sessionStart) / 1000, variant });
+      attempts.push({ part: p.n, vStart: (ev.start - p.start) / 1000, vEnd: (ev.end - p.start) / 1000, dur, goal, at: (ev.start - sessionStart - pausedTotal) / 1000, variant });
       const info = attInfo({ variant });
       lastResult = { text: fmtSec(dur), label: 'Versuch ' + attempts.length + (info ? ' · ' + info : ''), until: now + 6000, cls: goal ? 'goal' : 'counts', vid: true, n: attempts.length, goal, variant };
       if (dur > best) { best = dur; try { localStorage.setItem('hs-best', String(best)); } catch (e) {} }
@@ -1406,7 +1458,7 @@ function muxMp4(opts) {
   }
 
   function renderSession(now) {
-    $('statusText').textContent = (det.holding ? 'Handstand! ' : 'REC ') + clock(now - sessionStart);
+    $('statusText').textContent = (det.holding ? 'Handstand! ' : 'REC ') + clock(now - sessionStart - pausedTotal);
     if (det.holding) {
       const endT = det.notSince !== null ? det.lastInv : now;   // friert ein, sobald die Beine unten sind
       const sec = Math.max(0, endT - det.holdStart) / 1000;
@@ -1820,7 +1872,7 @@ function muxMp4(opts) {
   }
   function closeHistory() { closeOverlay('history'); }
   function openHistory() {
-    if (phase === 'session' || phase === 'stopping') return;
+    if (phase === 'session' || phase === 'paused' || phase === 'stopping') return;
     openOverlay('history');
     const h = loadHist().filter((x) => x && typeof x.t === 'number');
     const withHolds = h.filter((x) => x.n > 0);
@@ -1925,7 +1977,7 @@ function muxMp4(opts) {
   // Ablauf: fuer jede Uebung erst Vorbereitung (WU_PREP s), dann die Uebung selbst.
   let wuRun = null, wuTimer = null;
   function openWarmup() {
-    if (phase === 'session' || phase === 'stopping') return;
+    if (phase === 'session' || phase === 'paused' || phase === 'stopping') return;
     openOverlay('warmup');
     $('wuSetup').hidden = false; $('wuRun').hidden = true; $('wuDone').hidden = true;
     renderWuSetup();
@@ -2087,7 +2139,7 @@ function muxMp4(opts) {
   }
 
   function openChallenge() {
-    if (phase === 'session' || phase === 'stopping') return;
+    if (phase === 'session' || phase === 'paused' || phase === 'stopping') return;
     openOverlay('challenge');
     $('chName').value = myName;
     renderMine(); renderFriends();
@@ -2184,10 +2236,11 @@ function muxMp4(opts) {
     } catch (e) { showCamError(e); }
   });
   $('btnStart').addEventListener('click', beginSession);
+  $('btnPause').addEventListener('click', () => { if (phase === 'session') pauseSession(); else if (phase === 'paused') resumeSession(); });
   $('btnStop').addEventListener('click', () => {
     if (!stopArmed) {
       stopArmed = true; $('btnStop').textContent = 'Nochmal tippen zum Beenden';
-      setTimeout(() => { stopArmed = false; if (phase === 'session') $('btnStop').textContent = 'Session beenden'; }, 3000);
+      setTimeout(() => { stopArmed = false; if (phase === 'session' || phase === 'paused') $('btnStop').textContent = 'Session beenden'; }, 3000);
       return;
     }
     stopArmed = false; stopSession();
