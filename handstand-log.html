@@ -30,6 +30,7 @@
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--fg); font-family: var(--body); overscroll-behavior: none; }
   body { -webkit-user-select: none; user-select: none; -webkit-text-size-adjust: 100%; }
   button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
@@ -217,14 +218,16 @@
 
   /* Aufwaermen */
   .wu-list { display: flex; flex-direction: column; gap: 8px; }
-  .wu-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+  /* Feste Spaltenbreiten: Safari rechnet Knoepfe und <output> sonst breiter und schiebt den Regler ueber den Rand */
+  .wu-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px 10px 10px 12px; display: grid; grid-template-columns: 28px minmax(0, 1fr) 124px; align-items: center; gap: 10px; min-width: 0; width: 100%; }
   .wu-item.off { opacity: .45; }
-  .wu-item .tg { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: transparent; font-weight: 700; padding: 0; }
+  .wu-item .tg { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: transparent; font-weight: 700; padding: 0; margin: 0; display: grid; place-items: center; line-height: 1; }
   .wu-item .tg[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: #101315; }
-  .wu-item .nm { min-width: 0; font-weight: 600; font-size: .95rem; }
-  .wu-item .step { max-width: 150px; }
-  .wu-item .step button { flex: 0 0 38px; font-size: 1.1rem; }
-  .wu-item .step output { font-size: .9rem; padding: 0 4px; white-space: nowrap; }
+  .wu-item .nm { min-width: 0; font-weight: 600; font-size: .95rem; line-height: 1.25; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
+  @media (max-width: 350px) { .wu-item { grid-template-columns: 28px minmax(0, 1fr) 106px; gap: 8px; } .wu-item .step { width: 106px; max-width: 106px; } .wu-item .step button { flex-basis: 30px; width: 30px; } }
+  .wu-item .step { width: 124px; max-width: 124px; min-width: 0; flex: none; }
+  .wu-item .step button { flex: 0 0 36px; width: 36px; min-width: 0; padding: 0; margin: 0; font-size: 1.1rem; }
+  .wu-item .step output { flex: 1 1 0; min-width: 0; font-size: .9rem; padding: 0; white-space: nowrap; overflow: hidden; }
   #wuRun, #wuDone { display: flex; flex-direction: column; gap: 10px; text-align: center; }
   .wu-step { font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
   .wu-name { font-family: var(--disp); font-weight: 700; font-size: 2.1rem; line-height: 1; text-transform: uppercase; text-wrap: balance; }
