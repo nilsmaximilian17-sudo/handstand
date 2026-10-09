@@ -22,9 +22,7 @@
     --line: rgba(241, 239, 233, .16);
     --fg: #f1efe9;
     --mute: #a7a59d;
-    --hold: #ffb703;
     --ok: #7bd88f;
-    --goal: #6ec6ff;
     --rec: #ff4d3d;
     --disp: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
     --body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -35,7 +33,7 @@
   html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--fg); font-family: var(--body); overscroll-behavior: none; }
   body { -webkit-user-select: none; user-select: none; -webkit-text-size-adjust: 100%; }
   button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
-  button:focus-visible { outline: 3px solid var(--hold); outline-offset: 2px; }
+  button:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
 
   /* Alles liegt im normalen Seitenfluss (Spalte). Kein position:fixed fuer Bedienelemente:
      Das vermeidet versetzte Tipp-Flaechen auf dem iPhone. Kamera und Schatten liegen nur als Hintergrund dahinter. */
@@ -96,28 +94,39 @@
   #timerWrap > * { width: 100%; }
   #bodyNote { margin-top: 12px; font-size: .9rem; font-weight: 600; color: var(--fg); text-shadow: 0 1px 8px rgba(0,0,0,.8); min-height: 1.3em; }
   #bodyNote.seen { color: var(--ok); }
-  #bodyNote.miss { color: var(--hold); }
+  #bodyNote.miss { color: var(--fg); }
   #timerLabel { font-size: 1rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--fg);
     text-shadow: 0 1px 8px rgba(0,0,0,.8); min-height: 1.4em; }
   #timer { font-family: var(--disp); font-weight: 700; font-size: clamp(96px, min(36vw, 22vh), 260px); line-height: .9;
     font-variant-numeric: tabular-nums; text-shadow: 0 2px 24px rgba(0,0,0,.7); color: rgba(241,239,233,.85); }
-  #timer.live { color: var(--hold); }
-  #timer.counts { color: var(--ok); }
-  #timer.goal { color: var(--goal); }
+  #timer.live { color: var(--fg); }
+  #timer.counts { color: var(--fg); }
+  #timer.goal { color: var(--ok); }
   #timer.short { color: var(--mute); }
   #bar { width: min(70vw, 360px); height: 8px; border-radius: 99px; background: rgba(255,255,255,.2); margin: 14px auto 0; overflow: hidden; }
-  #bar i { display: block; height: 100%; width: 0; background: var(--hold); }
-  #bar.ok i { background: var(--ok); }
-  #bar.goal i { background: var(--goal); }
+  #bar i { display: block; height: 100%; width: 0; background: var(--fg); }
+  #bar.ok i { background: var(--fg); }
+  #bar.goal i { background: var(--ok); }
 
   /* Bedienfeld unten */
   #poseNote { margin: 0; font-size: .82rem; color: var(--mute); text-align: center; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
-  #poseNote.bad { color: var(--hold); }
+  #poseNote.bad { color: var(--rec); }
   #poseRetry { background: transparent; border: 1px solid var(--line); border-radius: 10px; min-height: 34px; padding: 0 12px; font-weight: 600; font-size: .82rem; }
   #sheet { flex: 0 0 auto; background: var(--panel); border-top: 1px solid var(--line);
     border-radius: 22px 22px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
     -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); display: flex; flex-direction: column; gap: 12px; }
   #setup { display: flex; flex-direction: column; gap: 10px; }
+  #setOpts { display: flex; flex-direction: column; gap: 10px; }
+  #setOpts[hidden] { display: none; }
+  #setSum { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 14px; text-align: left;
+    background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 12px; color: var(--fg); font-size: .92rem; font-weight: 600; }
+  #setSumTxt, #setSumHead { flex: 1 1 auto; min-width: 0; }
+  #setSumHead { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+  .rowbtn.main { grid-template-columns: 1fr 1.35fr; }
+  .rowbtn.main .btn { padding: 0 10px; }
+  #setSum .chg { flex: 0 0 auto; color: var(--mute); font-size: .85rem; font-weight: 600; }
+  #setSum[aria-expanded="true"] .chg { color: var(--fg); }
+  #timerWrap.idle #timer, #timerWrap.idle #bar { display: none; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .row > .lab { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); flex: 0 0 auto; min-width: 5.5em; }
   .seg, .step { display: flex; flex: 1 1 auto; max-width: 260px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
@@ -162,7 +171,9 @@
   .att .d { font-family: var(--disp); font-size: 1.9rem; font-variant-numeric: tabular-nums; line-height: 1; }
   .att.best .d { color: var(--ok); }
   .att .t { color: var(--mute); font-size: .8rem; font-variant-numeric: tabular-nums; text-align: right; }
-  .att .clip { background: transparent; border: 0; border-left: 1px solid var(--line); padding: 0 16px; font-size: .85rem; font-weight: 600; color: var(--mute); }
+  .att .clip { background: rgba(255,255,255,.06); border: 0; border-left: 1px solid var(--line); padding: 0 14px; min-width: 64px; font-size: .78rem; font-weight: 700; color: var(--fg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+  .att .clip:active { background: rgba(255,255,255,.14); }
   .actions { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
   details { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; }
   summary { min-height: 48px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }
@@ -174,9 +185,10 @@
   #histStats b { font-family: var(--disp); font-size: 2rem; line-height: 1; }
   #histStats span { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
   .gl { stroke: var(--line); stroke-width: 1; }
+  .chart-h { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); margin-bottom: 4px; }
   .lbl { fill: var(--mute); font-size: 9px; font-family: var(--body); }
-  .bar { fill: var(--ok); }
-  .bar.rec { fill: var(--hold); }
+  .bar { fill: rgba(123,216,143,.45); }
+  .bar.rec { fill: var(--ok); }
   .att .t .inf { display: block; color: var(--fg); font-weight: 600; }
   .att .t > span { display: block; }
   #histCal { display: flex; flex-direction: column; gap: 8px; }
@@ -193,7 +205,7 @@
   .cal .d[data-l="3"] { background: rgba(123,216,143,.7); color: #101315; font-weight: 700; }
   .cal .d[data-l="4"] { background: rgb(123,216,143); color: #101315; font-weight: 700; }
   .cal .d.today { box-shadow: inset 0 0 0 2px var(--fg); }
-  .cal .d.sel { outline: 2px solid var(--goal); outline-offset: 1px; }
+  .cal .d.sel { outline: 2px solid var(--fg); outline-offset: 1px; }
   #running.paused #btnPause { background: var(--fg); color: #101315; border-color: var(--fg); }
   .rowbtn { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .rowbtn3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -201,7 +213,7 @@
   .lab2 { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
   input[type="text"], textarea { font: inherit; font-size: 16px; width: 100%; color: var(--fg); background: rgba(255,255,255,.06);
     border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; -webkit-user-select: text; user-select: text; resize: vertical; }
-  input[type="text"]:focus, textarea:focus { outline: 2px solid var(--goal); outline-offset: 1px; }
+  input[type="text"]:focus, textarea:focus { outline: 2px solid var(--fg); outline-offset: 1px; }
 
   /* Aufwaermen */
   .wu-list { display: flex; flex-direction: column; gap: 8px; }
@@ -218,7 +230,7 @@
   .wu-name { font-family: var(--disp); font-weight: 700; font-size: 2.1rem; line-height: 1; text-transform: uppercase; text-wrap: balance; }
   .wu-desc { margin: 0 auto; color: var(--mute); line-height: 1.45; max-width: 34ch; min-height: 2.9em; }
   .wu-time { font-family: var(--disp); font-weight: 700; font-size: clamp(88px, 30vw, 160px); line-height: .9; font-variant-numeric: tabular-nums; }
-  .wu-time.prep { color: var(--hold); }
+  .wu-time.prep { color: var(--mute); }
   .wubar { height: 8px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; }
   .wubar i { display: block; height: 100%; width: 0; background: var(--ok); }
   .wu-next { color: var(--mute); font-size: .9rem; min-height: 1.3em; }
@@ -271,7 +283,7 @@
       <img class="logo" src="icon-512.png" alt="">
       <h1>Handstand<br>Logbuch</h1>
     </div>
-    <p>Stell das Handy hochkant neben dich, tippe auf Start und leg los. Die App erkennt den Handstand, stoppt die Zeit und nimmt die ganze Session auf.</p>
+    <p>Stell das Handy hochkant neben dich, starte die Session und leg los. Die App erkennt den Handstand, stoppt die Zeit und nimmt die ganze Session auf.</p>
     <ul>
       <li>Ganzer Körper muss im Bild sein, im Handstand auch die Füße</li>
       <li>Deine Haltezeit wird für jeden Versuch ins Video eingeblendet</li>
@@ -284,7 +296,7 @@
         <button id="btnRecDel" class="btn ghost" type="button">Löschen</button>
       </div>
     </div>
-    <button id="btnCam" class="btn primary" type="button">Kamera aktivieren</button>
+    <button id="btnCam" class="btn primary" type="button">Training einrichten</button>
     <div class="rowbtn3">
       <button id="btnHistIntro" class="btn ghost" type="button">Verlauf</button>
       <button id="btnWarmIntro" class="btn ghost" type="button">Aufwärmen</button>
@@ -308,6 +320,10 @@
 
   <section id="sheet" hidden>
     <div id="setup">
+      <button id="setSum" type="button" aria-expanded="false" aria-controls="setOpts">
+        <span id="setSumTxt"></span><span id="setSumHead" hidden>Einstellungen</span><span class="chg">Ändern</span>
+      </button>
+      <div id="setOpts" hidden>
       <div class="row">
         <span class="lab">Zählt ab</span>
         <div class="seg" id="segMin" data-key="minHold">
@@ -340,9 +356,10 @@
           <button type="button" data-v="auto">Auto</button><button type="button" data-v="manual">Manuell</button>
         </div>
       </div>
-      <div class="rowbtn" style="margin-top:6px">
+      </div>
+      <div class="rowbtn main" style="margin-top:6px">
         <button id="btnWarm" class="btn ghost" type="button" style="min-height:58px">Aufwärmen</button>
-        <button id="btnStart" class="btn primary" type="button">Start</button>
+        <button id="btnStart" class="btn primary" type="button">Session starten</button>
       </div>
       <p id="poseNote"><span id="poseText">Erkennung lädt …</span><button id="poseRetry" type="button" hidden>Erneut laden</button></p>
     </div>
@@ -354,7 +371,7 @@
         <div id="stGoalWrap"><b id="stGoal">0</b><span>Ziel</span></div>
       </div>
       <p id="hint"></p>
-      <div class="rowbtn" style="margin-top:12px">
+      <div class="rowbtn main" style="margin-top:12px">
         <button id="btnPause" class="btn ghost" type="button">Pause</button>
         <button id="btnStop" class="btn stop" type="button">Session beenden</button>
       </div>
@@ -834,7 +851,23 @@ function muxMp4(opts) {
       });
     });
     $('goalVal').textContent = S.goal > 0 ? S.goal + ' s' : 'Aus';
+    // Kurzfassung, solange die Einstellungen zugeklappt sind
+    const nb = (t) => t.replace(/ /g, '\u00a0');
+    $('setSumTxt').textContent = [
+      'Zählt ab ' + S.minHold + ' s', S.goal > 0 ? 'Ziel ' + S.goal + ' s' : 'Kein Ziel',
+      S.mode === 'auto' ? 'Auto' : 'Manuell', S.facing === 'user' ? 'Selfie' : 'Rückseite', S.speak === 'on' ? 'Ansage an' : 'Ansage aus'
+    ].map(nb).join(' · ');
   }
+  // Einstellungen auf- und zuklappen. Beim allerersten Start sind sie offen, danach zugeklappt.
+  function setOptsOpen(open) {
+    $('setOpts').hidden = !open;
+    $('setSum').setAttribute('aria-expanded', String(open));
+    $('setSum').querySelector('.chg').textContent = open ? 'Fertig' : 'Ändern';
+    $('setSumTxt').hidden = open; $('setSumHead').hidden = !open;
+  }
+  let firstRun = true;
+  try { firstRun = localStorage.getItem('hs-settings') === null; } catch (e) {}
+  $('setSum').addEventListener('click', () => setOptsOpen($('setOpts').hidden));
   document.querySelectorAll('.seg').forEach((seg) => {
     seg.addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
@@ -848,6 +881,7 @@ function muxMp4(opts) {
   $('goalMinus').addEventListener('click', () => { S.goal = Math.max(0, S.goal - 5); saveSettings(); paintSettings(); });
   $('goalPlus').addEventListener('click', () => { S.goal = Math.min(180, S.goal + 5); saveSettings(); paintSettings(); });
   paintSettings();
+  setOptsOpen(firstRun);
 
   // ---- Kamera ----
   function stopCamera() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } }
@@ -967,6 +1001,7 @@ function muxMp4(opts) {
     $('hud').hidden = false; $('timerWrap').hidden = false; $('sheet').hidden = false;
     $('setup').hidden = false; $('running').hidden = true;
     $('timerLabel').textContent = ''; setTimer('0,0', 'short'); setBar(0, '');
+    $('timerWrap').classList.add('idle');
     updateStatus();
   }
 
@@ -1075,13 +1110,13 @@ function muxMp4(opts) {
       return;
     }
     phase = 'session';
+    $('timerWrap').classList.remove('idle'); setOptsOpen(false);
     $('setup').hidden = true; $('running').hidden = false;
     $('btnStop').disabled = false; $('btnStop').textContent = 'Session beenden';
     $('btnPause').disabled = false; $('btnPause').textContent = 'Pause';
     $('stGoalWrap').hidden = !(S.goal > 0);
     renderStats();
-    $('hint').textContent = (useAuto() ? 'Automatische Erkennung läuft. ' : 'Manuell: Tippe auf die Zeit zum Starten und Stoppen. ')
-      + (baked ? 'Die Haltezeit wird ins Video eingeblendet.' : 'Dieses Gerät kann die Zeit nicht ins Video einblenden.');
+    $('hint').textContent = sessionHint();
     purgeOld(sessionId).then(() => saveMeta(false));
     updateStatus();
   }
@@ -1165,6 +1200,10 @@ function muxMp4(opts) {
     try { await idb.put('sessions', sessionId, m); } catch (e) {}
   }
 
+  // Eine kurze Zeile unter den Zahlen: nur was man waehrend des Trainings wirklich wissen muss.
+  const sessionHint = () => (useAuto() ? 'Erkennung läuft' : 'Tippe auf die Zeit: Start / Stopp')
+    + (baked ? '' : ' · Zeit wird nicht ins Video eingeblendet');
+
   // ---- Session: Pause ----
   // Pause: laufender Versuch wird abgeschlossen, das Video bis hier sicher abgelegt, Erkennung und Aufnahme ruhen.
   // Der Bildschirm darf ausgehen, du kannst das Handy normal benutzen. "Weiter" startet einen neuen Videoteil.
@@ -1181,7 +1220,7 @@ function muxMp4(opts) {
     $('btnPause').textContent = 'Weiter';
     $('running').classList.add('paused');
     $('timerLabel').textContent = 'Pause'; setTimer('II', 'short'); setBar(0, '');
-    $('hint').textContent = 'Pausiert: Es wird nichts aufgenommen und nichts gezählt. Du kannst das Handy normal benutzen. Tippe auf „Weiter“, wenn es weitergeht.';
+    $('hint').textContent = 'Keine Aufnahme, nichts wird gezählt';
     clearSkeleton(); $('bodyNote').textContent = ''; $('bodyNote').className = '';
     updateStatus();
   }
@@ -1206,8 +1245,7 @@ function muxMp4(opts) {
       $('btnPause').textContent = 'Pause';
       $('running').classList.remove('paused');
       $('timerLabel').textContent = ''; setTimer('0,0', 'short');
-      $('hint').textContent = (useAuto() ? 'Automatische Erkennung läuft. ' : 'Manuell: Tippe auf die Zeit zum Starten und Stoppen. ')
-        + (baked ? 'Die Haltezeit wird ins Video eingeblendet.' : 'Dieses Gerät kann die Zeit nicht ins Video einblenden.');
+      $('hint').textContent = sessionHint();
       updateStatus();
     } finally { resuming = false; $('btnPause').disabled = false; }
   }
@@ -1266,7 +1304,9 @@ function muxMp4(opts) {
     updateStatus();
   }
 
-  const nVers = (n) => n + (n === 1 ? ' Versuch' : ' Versuche');
+  const nVers = (n) => n + (n === 1 ? '\u00a0Versuch' : '\u00a0Versuche');
+  // Zusammengehoerige Teile (Zahl + Einheit) nie auseinanderreissen
+  const nbJoin = (arr) => arr.map((t) => t.replace(/ /g, '\u00a0')).join(' · ');
   const attInfo = (a) => a.variant || '';
 
   function renderStats() {
@@ -1526,12 +1566,12 @@ function muxMp4(opts) {
         const goalHit = S.goal > 0 && sec >= S.goal;
         label = 'Versuch ' + (attempts.length + 1) + (goalHit ? ' · Ziel' : '');
         text = fmtSec(sec) + ' s';
-        color = goalHit ? '#6ec6ff' : '#7bd88f';
+        color = goalHit ? '#7bd88f' : '#f1efe9';
       }
     } else if (lastResult && lastResult.vid && now < lastResult.until) {
       label = 'Versuch ' + lastResult.n + (lastResult.goal ? ' · Ziel' : '') + (lastResult.variant ? ' · ' + lastResult.variant : '');
       text = lastResult.text + ' s';
-      color = lastResult.goal ? '#6ec6ff' : '#7bd88f';
+      color = lastResult.goal ? '#7bd88f' : '#f1efe9';
     }
     if (!text) return true;
     const nf = Math.round(w * 0.085), lf = Math.round(w * 0.032), pad = Math.round(w * 0.022), m = Math.round(w * 0.035);
@@ -1606,7 +1646,7 @@ function muxMp4(opts) {
   function renderReview() {
     const A = review.attempts, total = A.reduce((s, a) => s + a.dur, 0), top = topAttempt();
     $('sumLine').textContent = A.length
-      ? nVers(A.length) + ' · Bester ' + fmtSec(top.dur) + ' s · Gesamt ' + fmtSec(total) + ' s · ' + review.parts.length + (review.parts.length === 1 ? ' Videoteil' : ' Videoteile')
+      ? nbJoin([nVers(A.length), 'Bester ' + fmtSec(top.dur) + ' s', 'Gesamt ' + fmtSec(total) + ' s', review.parts.length + (review.parts.length === 1 ? ' Videoteil' : ' Videoteile')])
       : 'Kein Handstand erkannt. Das Video kannst du trotzdem speichern. Tipp: Handy hochkant, ganzer Körper im Bild, gutes Licht.';
     const list = $('list'); list.textContent = '';
     A.forEach((a, i) => {
@@ -1623,7 +1663,9 @@ function muxMp4(opts) {
       play.append(n, d, t);
       play.addEventListener('click', () => playAttempt(a));
       const clip = document.createElement('button');
-      clip.type = 'button'; clip.className = 'clip'; clip.textContent = 'Clip';
+      clip.type = 'button'; clip.className = 'clip';
+      clip.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Clip</span>';
+      clip.setAttribute('aria-label', 'Versuch ' + (i + 1) + ' als Clip speichern');
       clip.addEventListener('click', () => exportClip(a, i + 1));
       row.append(play, clip);
       list.appendChild(row);
@@ -1813,7 +1855,7 @@ function muxMp4(opts) {
 
   // ---- Verlauf ----
   function chartSvg(items) {
-    const W = 320, H = 150, L = 30, R = 8, T = 10, B = 24;
+    const W = 320, H = 120, L = 30, R = 8, T = 10, B = 22;
     const maxB = Math.max.apply(null, items.map((i) => i.best).concat([10]));
     const top = Math.ceil(maxB / 10) * 10;
     const iw = W - L - R, ih = H - T - B, slot = iw / items.length, bw = Math.min(28, slot * 0.62);
@@ -1926,15 +1968,17 @@ function muxMp4(opts) {
       + '<div><b>' + Math.round(tot) + '</b><span>Haltezeit (s)</span></div>'
       + '<div><b>' + streakDays(h) + '</b><span>Serie (Tage)</span></div>';
     renderCal(h);
-    $('histChart').innerHTML = withHolds.length ? chartSvg(withHolds.slice(-14)) : '<p class="empty">Noch keine Sessions mit Handstand. Nach deiner ersten Session erscheint hier dein Verlauf.</p>';
+    $('histChart').innerHTML = withHolds.length >= 3
+      ? '<div class="chart-h">Bester Versuch pro Session (s)</div>' + chartSvg(withHolds.slice(-14))
+      : '<p class="empty">' + (withHolds.length ? 'Ab 3 Sessions mit Handstand siehst du hier, wie sich deine beste Zeit entwickelt.' : 'Noch keine Sessions mit Handstand. Nach deiner ersten Session erscheint hier dein Verlauf.') + '</p>';
     const list = $('histList'); list.textContent = '';
     h.slice().reverse().slice(0, 60).forEach((x) => {
       const row = document.createElement('div'); row.className = 'hrow';
       const info = document.createElement('div'); info.className = 'info';
       const a = document.createElement('span'); a.textContent = dateTime(x.t);
       const b = document.createElement('span'); b.className = 'sub';
-      b.textContent = nVers(x.n) + ' · Bester ' + (x.best ? fmtSec(x.best) + ' s' : '–') + ' · Gesamt ' + Math.round(x.total || 0) + ' s'
-        + (x.warm ? ' · aufgewärmt' : '');
+      b.textContent = nbJoin([nVers(x.n), 'Bester ' + (x.best ? fmtSec(x.best) + ' s' : '–'), 'Gesamt ' + Math.round(x.total || 0) + ' s']
+        .concat(x.warm ? ['aufgewärmt'] : []));
       info.append(a, b);
       // Loeschen mit Bestaetigung: erster Tipp macht den Knopf rot, zweiter Tipp loescht.
       const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = 'Löschen';
@@ -2079,7 +2123,7 @@ function muxMp4(opts) {
     }
     $('wuRun').hidden = true; $('wuDone').hidden = false;
     $('wuDoneTxt').textContent = r ? r.done + ' von ' + r.list.length + ' Übungen gemacht.' : '';
-    $('wuGo').textContent = phase === 'idle' ? 'Session starten' : 'Weiter zur Kamera';
+    $('wuGo').textContent = phase === 'idle' ? 'Session starten' : 'Training einrichten';
   }
   function wuStop() { clearInterval(wuTimer); wuTimer = null; wuRun = null; if (phase !== 'session') unlockScreen(); try { speechSynthesis.cancel(); } catch (e) {} }
 
@@ -2202,7 +2246,7 @@ function muxMp4(opts) {
     g.fillText('LOGBUCH', 260, 215);
     g.fillStyle = '#a7a59d'; g.font = '600 40px ' + face; g.fillText('CHALLENGE VON', 80, 360);
     g.fillStyle = '#f1efe9'; g.font = '700 120px ' + face; g.fillText((st.n || 'Ich').toUpperCase(), 80, 470);
-    const tiles = [['REKORD', st.rec ? fmtSec(st.rec) + ' s' : '–', '#7bd88f'], ['DIESE WOCHE', st.wk + ' s', '#f1efe9'], ['SERIE', st.st + (st.st === 1 ? ' TAG' : ' TAGE'), '#ffb703'], ['SESSIONS', String(st.ws), '#6ec6ff']];
+    const tiles = [['REKORD', st.rec ? fmtSec(st.rec) + ' s' : '–', '#7bd88f'], ['DIESE WOCHE', st.wk + ' s', '#f1efe9'], ['SERIE', st.st + (st.st === 1 ? ' TAG' : ' TAGE'), '#f1efe9'], ['SESSIONS', String(st.ws), '#f1efe9']];
     tiles.forEach(([l, v, col], i) => {
       const x = 80 + (i % 2) * 470, y = 560 + Math.floor(i / 2) * 300;
       g.fillStyle = 'rgba(255,255,255,0.06)'; roundRect(g, x, y, 450, 270, 28); g.fill();
