@@ -45,7 +45,7 @@
   #cam.mirror, #overlay.mirror { transform: scaleX(-1); }
   .shade { position: absolute; inset: 0; pointer-events: none;
     background: linear-gradient(to bottom, rgba(0,0,0,.55) 0, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 45%, rgba(0,0,0,.7) 100%); }
-  #hud, #timerWrap, #sheet, #intro, #review, #history, #warmup, #challenge { position: relative; z-index: 1; }
+  #hud, #timerWrap, #sheet, #intro, #review, #history, #warmup, #challenge, #replay { position: relative; z-index: 1; }
 
   /* Intro */
   #intro { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 14px;
@@ -144,11 +144,11 @@
   #hint { margin: 0; font-size: .82rem; color: var(--mute); text-align: center; }
 
   /* Rueckblick & Verlauf */
-  #review, #history, #warmup, #challenge { flex: 1 1 auto; min-height: 0; background: var(--bg); display: flex; flex-direction: column; gap: 12px;
+  #review, #history, #warmup, #challenge, #replay { flex: 1 1 auto; min-height: 0; background: var(--bg); display: flex; flex-direction: column; gap: 12px;
     padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-  #review > *, #history > *, #warmup > *, #challenge > * { flex-shrink: 0; }
-  #review::after, #history::after, #warmup::after, #challenge::after { content: ''; display: block; flex: 0 0 auto;
+  #review > *, #history > *, #warmup > *, #challenge > *, #replay > * { flex-shrink: 0; }
+  #review::after, #history::after, #warmup::after, #challenge::after, #replay::after { content: ''; display: block; flex: 0 0 auto;
     height: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .btn { white-space: normal; line-height: 1.2; }
   .ovhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -257,6 +257,19 @@
   .cmp .del { align-self: flex-end; background: transparent; border: 1px solid var(--line); border-radius: 10px; min-height: 36px; padding: 0 12px; font-size: .82rem; font-weight: 600; color: var(--mute); }
   .cmp .del.arm { background: var(--rec); border-color: var(--rec); color: #fff; }
 
+  #btnReplay { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px; margin-top: 10px; }
+  #btnReplay[hidden] { display: none; }
+  #rpVideo { width: 100%; max-height: 58vh; background: #000; border-radius: 12px; flex: 0 0 auto; }
+  #rpTitle { text-transform: none; }
+  #rpSlow[aria-pressed="true"] { background: var(--fg); color: #101315; border-color: var(--fg); }
+  .rp-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+  .rp-chip { flex: 0 0 auto; min-height: 48px; min-width: 64px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 12px; background: transparent;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-variant-numeric: tabular-nums; }
+  .rp-chip b { font-family: var(--disp); font-size: 1.2rem; line-height: 1; }
+  .rp-chip span { font-size: .7rem; color: var(--mute); }
+  .rp-chip.goal b { color: var(--ok); }
+  .rp-chip[aria-current="true"] { background: var(--fg); color: #101315; border-color: var(--fg); }
+  .rp-chip[aria-current="true"] span, .rp-chip[aria-current="true"].goal b { color: #101315; }
   #calInfo { margin: 0; font-size: .85rem; color: var(--mute); line-height: 1.4; }
   .hrow { border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 8px 14px; display: flex; align-items: center; gap: 10px; font-size: .9rem; }
   .hrow .info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -374,6 +387,10 @@
         <div id="stGoalWrap"><b id="stGoal">0</b><span>Ziel</span></div>
       </div>
       <p id="hint"></p>
+      <button id="btnReplay" class="btn ghost" type="button" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>
+        <span>Letzten Versuch ansehen</span>
+      </button>
       <div class="rowbtn main" style="margin-top:12px">
         <button id="btnPause" class="btn ghost" type="button">Pause</button>
         <button id="btnStop" class="btn stop" type="button">Session beenden</button>
@@ -436,6 +453,18 @@
       <p class="wu-desc" id="wuDoneTxt">Handgelenke und Schultern sind bereit.</p>
       <button id="wuGo" class="btn primary" type="button">Weiter zur Session</button>
     </div>
+  </section>
+
+  <section id="replay" hidden>
+    <div class="ovhead"><h2 id="rpTitle">Versuch</h2><button id="rpClose" class="xbtn" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg></button></div>
+    <video id="rpVideo" playsinline muted></video>
+    <p id="rpMsg" class="empty" hidden></p>
+    <div class="rowbtn">
+      <button id="rpSlow" class="btn ghost" type="button" aria-pressed="false">Zeitlupe</button>
+      <button id="rpAgain" class="btn ghost" type="button">Nochmal</button>
+    </div>
+    <div id="rpList" class="rp-list" aria-label="Versuch wählen"></div>
+    <p class="empty" style="font-size:.85rem">Die Aufnahme läuft weiter. Solange du hier schaust, wird kein neuer Versuch gezählt.</p>
   </section>
 
   <section id="challenge" hidden>
@@ -1033,7 +1062,7 @@ function muxMp4(opts) {
   const toU8 = (d) => (d instanceof ArrayBuffer ? new Uint8Array(d.slice(0)) : new Uint8Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength)));
   function makeEncoder(src, codec, bitrate) {
     const w = src.width, h = src.height;
-    const st = { samples: [], avcC: null, failed: false, frames: 0, outputs: 0, t0: null, lastKey: -1e9, lastTs: -1, closed: false };
+    const st = { samples: [], avcC: null, failed: false, frames: 0, outputs: 0, t0: null, lastKey: -1e9, lastTs: -1, closed: false, w, h };
     const enc = new VideoEncoder({
       output: (chunk, meta) => {
         try {
@@ -1253,6 +1282,110 @@ function muxMp4(opts) {
     } finally { resuming = false; $('btnPause').disabled = false; }
   }
 
+  // ---- Versuch direkt in der Session ansehen ----
+  // Laufender Videoteil: der Clip wird aus den schon kodierten Bildern im Speicher gebaut (kein Stopp der Aufnahme).
+  // Abgeschlossener Teil (z. B. in der Pause): direkt aus dem gespeicherten Teil.
+  // Rueckfall ohne eigenen Encoder: der laufende Teil wird abgeschlossen und sofort ein neuer begonnen.
+  let replayOpen = false, rpUrl = null, rpSeg = null, rpCur = null, rpToken = 0;
+  const rpVideo = $('rpVideo');
+  async function waitStored(p, ms) {
+    const t0 = performance.now();
+    while (!p.stored && performance.now() - t0 < ms) await sleep(100);
+    return p.stored;
+  }
+  async function attemptClip(a) {
+    const p = parts[a.part];
+    if (!p) throw new Error('part');
+    const from = Math.max(0, a.vStart - 2), to = a.vEnd + 1.5;
+    if (p === curPart && p.kind === 'enc' && !p.stopping && p.enc.st.avcC && p.enc.st.samples.length) {
+      const S = p.enc.st.samples, s0 = from * 1e6, s1 = to * 1e6;
+      let i0 = 0;
+      for (let i = 0; i < S.length && S[i].ts <= s0; i++) if (S[i].key) i0 = i;
+      let i1 = S.length;
+      for (let i = i0; i < S.length; i++) if (S[i].ts > s1) { i1 = i; break; }
+      const sub = S.slice(i0, i1);
+      if (!sub.length || !sub[0].key) throw new Error('nokey');
+      const off = sub[0].ts / 1e6;
+      return { blob: muxMp4({ width: p.enc.st.w, height: p.enc.st.h, avcC: p.enc.st.avcC, samples: sub }), a: Math.max(0, from - off), b: to - off, kind: 'live' };
+    }
+    if (p === curPart && phase === 'session' && !p.stopping) {
+      try { startPart(); } catch (e) { throw new Error('rotate'); }
+      stopPart(p);
+    }
+    if (!(await waitStored(p, 10000))) throw new Error('store');
+    const blob = await getBlob(p.key);
+    if (!blob) throw new Error('missing');
+    return { blob, a: from, b: to, kind: 'part' };
+  }
+  function renderRpList() {
+    const L = $('rpList'); L.textContent = '';
+    attempts.forEach((a, i) => {
+      const c = document.createElement('button'); c.type = 'button'; c.className = 'rp-chip' + (a.goal ? ' goal' : '');
+      c.setAttribute('aria-current', String(a === rpCur));
+      c.setAttribute('aria-label', 'Versuch ' + (i + 1) + ', ' + fmtSec(a.dur) + ' Sekunden');
+      const b = document.createElement('b'); b.textContent = fmtSec(a.dur);
+      const t = document.createElement('span'); t.textContent = 'Versuch ' + (i + 1);
+      c.append(b, t);
+      c.addEventListener('click', () => showReplay(a));
+      L.appendChild(c);
+    });
+    const cur = L.querySelector('[aria-current="true"]');
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  async function showReplay(a) {
+    const tok = ++rpToken;
+    rpCur = a; rpSeg = null;
+    const n = attempts.indexOf(a) + 1;
+    $('rpTitle').textContent = 'Versuch ' + n + ' · ' + fmtSec(a.dur) + '\u00a0s';
+    renderRpList();
+    $('rpMsg').hidden = false; $('rpMsg').textContent = 'Video wird vorbereitet …';
+    try {
+      const c = await attemptClip(a);
+      if (tok !== rpToken || !replayOpen) return;
+      if (rpUrl) URL.revokeObjectURL(rpUrl);
+      rpUrl = URL.createObjectURL(c.blob);
+      rpVideo.dataset.kind = c.kind; rpVideo.muted = true; rpVideo.src = rpUrl; rpVideo.load();
+      await waitEvent(rpVideo, 'loadedmetadata', 15000);
+      await fixDuration(rpVideo);
+      if (tok !== rpToken || !replayOpen) return;
+      rpSeg = { a: c.a, b: Math.min(c.b, isFinite(rpVideo.duration) ? rpVideo.duration : c.b) };
+      rpVideo.playbackRate = $('rpSlow').getAttribute('aria-pressed') === 'true' ? 0.5 : 1;
+      await seekTo(rpVideo, rpSeg.a);
+      $('rpMsg').hidden = true;
+      try { await rpVideo.play(); } catch (e) {}
+    } catch (e) {
+      if (tok !== rpToken) return;
+      $('rpMsg').hidden = false; $('rpMsg').textContent = 'Das Video zu diesem Versuch ist gerade nicht verfügbar. Nach der Session findest du es in der Auswertung.';
+    }
+  }
+  function openReplay() {
+    if (!(phase === 'session' || phase === 'paused') || !attempts.length || det.holding || replayOpen) return;
+    replayOpen = true;
+    openOverlay('replay');
+    showReplay(attempts[attempts.length - 1]);
+  }
+  function closeReplay() {
+    if (!replayOpen) return;
+    rpToken++; replayOpen = false; rpSeg = null; rpCur = null;
+    try { rpVideo.pause(); } catch (e) {}
+    rpVideo.removeAttribute('src'); rpVideo.load();
+    if (rpUrl) { URL.revokeObjectURL(rpUrl); rpUrl = null; }
+    closeOverlay('replay');
+    // frisch weiter erkennen: nichts vom Herumtragen des Handys uebernehmen
+    det.reset(); holdSamples = []; lastNorm = null; lastRot = null; lastEndT = performance.now(); lastResult = null;
+  }
+  rpVideo.addEventListener('timeupdate', () => { if (rpSeg && rpVideo.currentTime >= rpSeg.b) { rpVideo.currentTime = rpSeg.a; } });
+  rpVideo.addEventListener('ended', () => { if (rpSeg) { rpVideo.currentTime = rpSeg.a; rpVideo.play().catch(() => {}); } });
+  rpVideo.addEventListener('click', () => { if (rpVideo.paused) rpVideo.play().catch(() => {}); else rpVideo.pause(); });
+  $('btnReplay').addEventListener('click', openReplay);
+  $('rpClose').addEventListener('click', closeReplay);
+  $('rpAgain').addEventListener('click', () => { if (rpSeg) { rpVideo.currentTime = rpSeg.a; rpVideo.play().catch(() => {}); } });
+  $('rpSlow').addEventListener('click', () => {
+    const on = $('rpSlow').getAttribute('aria-pressed') !== 'true';
+    $('rpSlow').setAttribute('aria-pressed', String(on));
+    rpVideo.playbackRate = on ? 0.5 : 1;
+  });
+
   // ---- Session: Ende ----
   function stopSession() {
     if (phase !== 'session' && phase !== 'paused') return;
@@ -1319,6 +1452,7 @@ function muxMp4(opts) {
     $('stBest').textContent = top ? fmtSec(top) : '–';
     $('stTotal').textContent = total ? fmtSec(total) : '–';
     $('stGoal').textContent = String(attempts.filter((a) => a.goal).length);
+    $('btnReplay').hidden = !attempts.length;
   }
 
   // ---- Schleife: Erkennung, Aufnahme-Canvas, Anzeige ----
@@ -1500,7 +1634,7 @@ function muxMp4(opts) {
     }
     if (phase !== 'session') { clearSkeleton(); return; }
     if (baked && now - lastDraw >= 30) { lastDraw = now; if (drawFrame(now)) feedEncoder(now); }
-    const r = runDetection(now, 80);
+    const r = replayOpen ? null : runDetection(now, 80);   // beim Ansehen eines Versuchs ruht die Erkennung
     if (r) { onEvent(det.feed(r.inv, r.inv ? r.t : now)); drawSkeleton(lastLm, r.inv); }
     if (!det.holding && det.invSince === null && holdSamples.length) holdSamples = [];
     if (!useAuto()) clearSkeleton();
@@ -1943,7 +2077,7 @@ function muxMp4(opts) {
   }
 
   // Verlauf, Aufwaermen, Challenge legen sich ueber den aktuellen Bildschirm und stellen ihn beim Schliessen wieder her.
-  const SCREENS = ['intro', 'hud', 'timerWrap', 'sheet', 'review', 'history', 'warmup', 'challenge'];
+  const SCREENS = ['intro', 'hud', 'timerWrap', 'sheet', 'review', 'history', 'warmup', 'challenge', 'replay'];
   const ovStack = [];
   function openOverlay(id) {
     if (!$(id).hidden) return;
