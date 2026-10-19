@@ -261,6 +261,15 @@
   #btnReplay[hidden] { display: none; }
   #rpVideo { width: 100%; max-height: 58vh; background: #000; border-radius: 12px; flex: 0 0 auto; }
   #rpTitle { text-transform: none; }
+  #rpScrub { display: flex; flex-direction: column; gap: 4px; margin-top: -4px; }
+  .rp-times { display: flex; justify-content: space-between; font-size: .8rem; color: var(--mute); font-variant-numeric: tabular-nums; }
+  .rp-times #rpPos { color: var(--fg); font-weight: 600; }
+  .rp-bar { display: flex; align-items: center; gap: 8px; }
+  .rp-bar button { flex: 0 0 auto; min-width: 64px; min-height: 44px; padding: 0 8px; background: transparent; border: 1px solid var(--line); border-radius: 10px;
+    font-size: .85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rp-bar button:active { background: rgba(255,255,255,.12); }
+  #rpRange { flex: 1 1 auto; min-width: 0; height: 44px; margin: 0; accent-color: var(--fg); touch-action: none; }
+  #rpRange:disabled { opacity: .4; }
   #rpSlow[aria-pressed="true"] { background: var(--fg); color: #101315; border-color: var(--fg); }
   .rp-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
   .rp-chip { flex: 0 0 auto; min-height: 48px; min-width: 64px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 12px; background: transparent;
@@ -458,6 +467,14 @@
   <section id="replay" hidden>
     <div class="ovhead"><h2 id="rpTitle">Versuch</h2><button id="rpClose" class="xbtn" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg></button></div>
     <video id="rpVideo" playsinline muted></video>
+    <div id="rpScrub">
+      <div class="rp-times"><span id="rpPos">0,0 s</span><span id="rpLen">0,0 s</span></div>
+      <div class="rp-bar">
+        <button id="rpBack" type="button" aria-label="Eine halbe Sekunde zurück">−0,5 s</button>
+        <input id="rpRange" type="range" min="0" max="1000" step="1" value="0" aria-label="Stelle im Versuch" disabled>
+        <button id="rpFwd" type="button" aria-label="Eine halbe Sekunde vor">+0,5 s</button>
+      </div>
+    </div>
     <p id="rpMsg" class="empty" hidden></p>
     <div class="rowbtn">
       <button id="rpSlow" class="btn ghost" type="button" aria-pressed="false">Zeitlupe</button>
@@ -1360,8 +1377,9 @@ function muxMp4(opts) {
   }
   function openReplay() {
     if (!(phase === 'session' || phase === 'paused') || !attempts.length || det.holding || replayOpen) return;
-    replayOpen = true;
+    replayOpen = true; rpDrag = false;
     openOverlay('replay');
+    requestAnimationFrame(rpTick);
     showReplay(attempts[attempts.length - 1]);
   }
   function closeReplay() {
@@ -1374,7 +1392,25 @@ function muxMp4(opts) {
     // frisch weiter erkennen: nichts vom Herumtragen des Handys uebernehmen
     det.reset(); holdSamples = []; lastNorm = null; lastRot = null; lastEndT = performance.now(); lastResult = null;
   }
-  rpVideo.addEventListener('timeupdate', () => { if (rpSeg && rpVideo.currentTime >= rpSeg.b) { rpVideo.currentTime = rpSeg.a; } });
+  rpVideo.addEventListener('timeupdate', () => { if (rpSeg && !rpDrag && rpVideo.currentTime >= rpSeg.b) { rpVideo.currentTime = rpSeg.a; } });
+  // Vor- und Zurueckspulen innerhalb des Versuchs: Schieberegler plus Schritte von 0,5 s
+  let rpDrag = false;
+  const rpLenS = () => (rpSeg ? Math.max(0.1, rpSeg.b - rpSeg.a) : 0);
+  function rpPaint() {
+    const on = !!rpSeg;
+    $('rpRange').disabled = !on; $('rpBack').disabled = !on; $('rpFwd').disabled = !on;
+    if (!on) { $('rpPos').textContent = '0,0 s'; $('rpLen').textContent = '0,0 s'; if (!rpDrag) $('rpRange').value = '0'; return; }
+    const len = rpLenS(), pos = Math.max(0, Math.min(len, rpVideo.currentTime - rpSeg.a));
+    $('rpPos').textContent = fmtSec(pos) + ' s'; $('rpLen').textContent = fmtSec(len) + ' s';
+    if (!rpDrag) $('rpRange').value = String(Math.round(pos / len * 1000));
+  }
+  function rpTick() { if (!replayOpen) return; rpPaint(); requestAnimationFrame(rpTick); }
+  function rpSeek(t) { if (!rpSeg) return; rpVideo.currentTime = Math.max(rpSeg.a, Math.min(rpSeg.b - 0.04, t)); rpPaint(); }
+  $('rpRange').addEventListener('input', () => { if (!rpSeg) return; rpDrag = true; rpSeek(rpSeg.a + (+$('rpRange').value / 1000) * rpLenS()); });
+  $('rpRange').addEventListener('change', () => { rpDrag = false; });
+  ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach((ev) => $('rpRange').addEventListener(ev, () => { rpDrag = false; }));
+  $('rpBack').addEventListener('click', () => { if (rpSeg) rpSeek(rpVideo.currentTime - 0.5); });
+  $('rpFwd').addEventListener('click', () => { if (rpSeg) rpSeek(rpVideo.currentTime + 0.5); });
   rpVideo.addEventListener('ended', () => { if (rpSeg) { rpVideo.currentTime = rpSeg.a; rpVideo.play().catch(() => {}); } });
   rpVideo.addEventListener('click', () => { if (rpVideo.paused) rpVideo.play().catch(() => {}); else rpVideo.pause(); });
   $('btnReplay').addEventListener('click', openReplay);
